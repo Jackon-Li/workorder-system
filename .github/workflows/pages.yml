@@ -24,6 +24,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 发布前隐私门禁：命中手机号/身份证/邮箱即失败，避免演示数据带出个人信息
+      - name: PII gate
+        run: python3 scripts/check_pii.py
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:

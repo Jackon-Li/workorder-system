@@ -294,11 +294,12 @@ Create Pages site failed. Error: Resource not accessible by integration
 
 ### 14.2 部署流程
 
-`.github/workflows/pages.yml` 在 `docs/` 或工作流自身发生变化时触发，三步：
+`.github/workflows/pages.yml` 在 `docs/` 或工作流自身发生变化时触发，四步：
 
-1. `actions/configure-pages@v5` —— 读取（已开启则直接通过）Pages 配置；
-2. `actions/upload-pages-artifact@v3` —— 把 `docs/` 打成 Pages 制品；
-3. `actions/deploy-pages@v4` —— 发布到 `https://<用户名>.github.io/<仓库名>/`。
+1. **PII 门禁** `python3 scripts/check_pii.py` —— 扫描 `docs/`、README 等公开文件，命中手机号 / 身份证 / 邮箱 / 真实姓名组合就直接失败，工件不会上传（本地可先跑一遍，退出码非 0 即阻断）；
+2. `actions/configure-pages@v5` —— 读取（已开启则直接通过）Pages 配置；
+3. `actions/upload-pages-artifact@v3` —— 把 `docs/` 打成 Pages 制品；
+4. `actions/deploy-pages@v4` —— 发布到 `https://<用户名>.github.io/<仓库名>/`。
 
 Pages 已开启后，日常只需改 `docs/` 并 push，无需再碰设置页。`docs/.nojekyll` 是空文件，
 让 Pages 跳过 Jekyll 处理（否则下划线开头的文件会被静默忽略）。
