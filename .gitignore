@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.log
+
+# 数据库（首次运行由 install.py / init_db 生成）
+db/*.db
+db/*.db-wal
+db/*.db-shm
+
+# 打包产物
+dist/
+*.zip
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

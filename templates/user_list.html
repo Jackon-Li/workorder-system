@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}用户管理{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-users-cog"></i> 用户管理</h4>
+    <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#createUserModal"><i class="fas fa-plus"></i> 新增用户</button>
+</div>
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr><th>ID</th><th>用户名</th><th>显示名</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>{{ u.id }}</td>
+                    <td>{{ u.username }}</td>
+                    <td>{{ u.display_name or '-' }}</td>
+                    <td>{% if u.is_admin %}<span class="badge badge-danger">管理员</span>{% else %}<span class="badge badge-secondary">普通用户</span>{% endif %}</td>
+                    <td>{% if u.is_active %}<span class="text-success">正常</span>{% else %}<span class="text-danger">已禁用</span>{% endif %}</td>
+                    <td>{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '' }}</td>
+                    <td>
+                        <form method="post" action="{{ url_for('user_reset_pwd', user_id=u.id) }}" style="display:inline" onsubmit="return confirm('确定重置密码为 Abcd12345？')">
+                            <button class="btn btn-outline-warning btn-sm" title="重置密码"><i class="fas fa-key"></i></button>
+                        </form>
+                        <form method="post" action="{{ url_for('user_toggle_active', user_id=u.id) }}" style="display:inline" onsubmit="return confirm('确定{{ "禁用" if u.is_active else "启用" }}该用户？')">
+                            <button class="btn btn-outline-{{ 'danger' if u.is_active else 'success' }} btn-sm" title="{{ '禁用' if u.is_active else '启用' }}">
+                                <i class="fas fa-{{ 'ban' if u.is_active else 'check' }}"></i>
+                            </button>
+                        </form>
+                        <form method="post" action="{{ url_for('user_delete', user_id=u.id) }}" style="display:inline" onsubmit="return confirm('确定删除该用户？')">
+                            <button class="btn btn-outline-danger btn-sm" title="删除"><i class="fas fa-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 创建用户 Modal -->
+<div class="modal fade" id="createUserModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{{ url_for('user_create') }}">
+                <div class="modal-header"><h5 class="modal-title">新增用户</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>用户名 <span class="text-danger">*</span></label>
+                        <input type="text" name="username" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>显示名称</label>
+                        <input type="text" name="display_name" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>密码</label>
+                        <input type="text" name="password" class="form-control" value="Abcd12345">
+                        <small class="text-muted">默认密码 Abcd12345</small>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" name="is_admin" id="is_admin" class="form-check-input">
+                        <label class="form-check-label" for="is_admin">管理员权限</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">创建</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

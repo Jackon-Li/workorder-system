@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}工单详情 - {{ ticket.serial_no }}{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-file-alt"></i> 工单详情</h4>
+    <div>
+        {% if ticket.status == '待处理' %}
+        <form method="post" action="{{ url_for('ticket_start', ticket_id=ticket.id) }}" style="display:inline">
+            <button class="btn btn-warning btn-sm"><i class="fas fa-play"></i> 开始处理</button>
+        </form>
+        {% endif %}
+        {% if ticket.status in ('待处理', '处理中') %}
+        <button class="btn btn-success btn-sm" data-toggle="modal" data-target="#completeModal"><i class="fas fa-check"></i> 完成工单</button>
+        <a href="{{ url_for('ticket_edit', ticket_id=ticket.id) }}" class="btn btn-primary btn-sm"><i class="fas fa-edit"></i> 编辑</a>
+        {% endif %}
+        {% if ticket.status != '已关闭' %}
+        <form method="post" action="{{ url_for('ticket_close', ticket_id=ticket.id) }}" style="display:inline" onsubmit="return confirm('确定关闭此工单吗？关闭后不再出现在待处理列表。')">
+            <button class="btn btn-secondary btn-sm"><i class="fas fa-archive"></i> 关闭</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{{ url_for('ticket_delete', ticket_id=ticket.id) }}" style="display:inline" onsubmit="return confirm('确定删除此工单吗？')">
+            <button class="btn btn-danger btn-sm"><i class="fas fa-trash"></i> 删除</button>
+        </form>
+        <a href="{{ url_for('ticket_list') }}" class="btn btn-secondary btn-sm"><i class="fas fa-arrow-left"></i> 返回列表</a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <table class="table table-bordered">
+                    <tr><th width="120">工单编号</th><td><strong>{{ ticket.serial_no }}</strong></td>
+                        <th width="80">状态</th>
+                        <td>{% if ticket.status == '待处理' %}<span class="badge badge-status-pending">待处理</span>
+                            {% elif ticket.status == '处理中' %}<span class="badge badge-status-processing">处理中</span>
+                            {% elif ticket.status == '已完成' %}<span class="badge badge-status-completed">已完成</span>
+                            {% else %}<span class="badge badge-status-closed">已关闭</span>{% endif %}</td></tr>
+                    <tr><th>接收日期</th><td>{{ ticket.receive_date.strftime('%Y-%m-%d') if ticket.receive_date else '' }}</td>
+                        <th>优先级</th>
+                        <td>{% if ticket.priority == '低' %}<span class="badge badge-priority-low">低</span>
+                            {% elif ticket.priority == '高' %}<span class="badge badge-priority-high">高</span>
+                            {% elif ticket.priority == '紧急' %}<span class="badge badge-priority-urgent">紧急</span>
+                            {% else %}<span class="badge badge-priority-mid">中</span>{% endif %}</td></tr>
+                    <tr><th>用户单位</th><td>{{ ticket.user_unit }}</td>
+                        <th>接收人</th><td>{{ ticket.receiver }}</td></tr>
+                    <tr><th>联系人</th><td>{{ ticket.contact_person }}</td>
+                        <th>联系电话</th><td>{{ ticket.contact_phone }}</td></tr>
+                    <tr><th>区域</th><td colspan="3">{{ ticket.province }} {{ ticket.city }} {{ ticket.county }}</td></tr>
+                    <tr><th>故障类型</th><td>{{ ticket.custom_fault_type or ticket.fault_type or '-' }}</td>
+                        <th>产品序列号</th><td>{{ ticket.product_sn or '-' }}</td></tr>
+                    <tr><th>上门处理</th><td>{{ '是' if ticket.need_onsite else '否' }}</td>
+                        <th>上门人员</th><td>{{ ticket.onsite_person or '-' }}</td></tr>
+                    {% if ticket.need_onsite %}
+                    <tr><th>上门日期</th><td colspan="3">{{ ticket.onsite_date.strftime('%Y-%m-%d') if ticket.onsite_date else '' }}</td></tr>
+                    {% endif %}
+                    <tr><th>问题现象</th><td colspan="3"><pre style="white-space:pre-wrap;background:#f8f9fa;padding:8px;border-radius:4px">{{ ticket.problem_desc }}</pre></td></tr>
+                    {% if ticket.solution_detail %}
+                    <tr><th>处理详情</th><td colspan="3"><pre style="white-space:pre-wrap;background:#f8f9fa;padding:8px;border-radius:4px">{{ ticket.solution_detail }}</pre></td></tr>
+                    {% endif %}
+                    {% if ticket.remark %}
+                    <tr><th>备注</th><td colspan="3">{{ ticket.remark }}</td></tr>
+                    {% endif %}
+                    {% if ticket.completed_at %}
+                    <tr><th>完成时间</th><td colspan="3">{{ ticket.completed_at.strftime('%Y-%m-%d %H:%M') if ticket.completed_at else '' }} 由 {{ ticket.completed_by }} 完成</td></tr>
+                    {% endif %}
+                    <tr><th>创建时间</th><td>{{ ticket.created_at.strftime('%Y-%m-%d %H:%M') if ticket.created_at else '' }}</td>
+                        <th>更新时间</th><td>{{ ticket.updated_at.strftime('%Y-%m-%d %H:%M') if ticket.updated_at else '' }}</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">操作历史</div>
+            <div class="card-body" style="max-height:500px;overflow-y:auto">
+                {% if histories %}
+                <ul class="list-unstyled mb-0">
+                    {% for h in histories %}
+                    <li class="mb-2 pb-2" style="border-bottom:1px solid #f0f0f0">
+                        <small class="text-muted">{{ h.created_at.strftime('%m-%d %H:%M') if h.created_at else '' }}</small>
+                        <span class="badge badge-light float-right">{{ h.operator }}</span>
+                        <div>
+                            {% if h.action == 'create' %}<span class="text-success">创建工单</span>
+                            {% elif h.action == 'edit' %}<span class="text-info">修改 {{ h.field_name }}</span>
+                            {% elif h.action == 'complete' %}<span class="text-success">完成工单</span>
+                            {% elif h.action == 'start' %}<span class="text-warning">开始处理</span>
+                            {% elif h.action == 'close' %}<span class="text-muted">关闭工单</span>
+                            {% elif h.action == 'delete' %}<span class="text-danger">删除工单</span>
+                            {% elif h.action == 'import' %}<span class="text-primary">导入工单</span>
+                            {% else %}{{ h.action }}{% endif %}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted mb-0">暂无操作记录</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 完成工单 Modal -->
+<div class="modal fade" id="completeModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{{ url_for('ticket_complete', ticket_id=ticket.id) }}">
+                <div class="modal-header"><h5 class="modal-title">完成工单</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>处理详情</label>
+                        <textarea name="solution_detail" class="form-control" rows="4" placeholder="请填写处理过程和结果"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>完成时间</label>
+                        <input type="datetime-local" name="completed_at" class="form-control" value="{{ now().strftime('%Y-%m-%dT%H:%M') if now else '' }}">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-success"><i class="fas fa-check"></i> 确认完成</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

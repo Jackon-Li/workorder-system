@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block title %}工单列表{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-list"></i> 工单列表</h4>
+    <div>
+        <a href="{{ url_for('ticket_create') }}" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> 新建工单</a>
+        <a href="{{ url_for('export_template') }}" class="btn btn-info btn-sm"><i class="fas fa-download"></i> 下载模板</a>
+        <a href="{{ url_for('ticket_import') }}" class="btn btn-success btn-sm"><i class="fas fa-upload"></i> 导入工单</a>
+    </div>
+</div>
+
+<!-- 统计卡片 -->
+<div class="row">
+    <div class="col-md-3"><div class="card stat-card"><div class="number text-primary">{{ stats.total }}</div><div class="label">工单总数</div></div></div>
+    <div class="col-md-2"><div class="card stat-card"><div class="number text-warning">{{ stats.pending }}</div><div class="label">待处理</div></div></div>
+    <div class="col-md-2"><div class="card stat-card"><div class="number text-info">{{ stats.processing }}</div><div class="label">处理中</div></div></div>
+    <div class="col-md-2"><div class="card stat-card"><div class="number text-success">{{ stats.completed }}</div><div class="label">已完成</div></div></div>
+    <div class="col-md-3"><div class="card stat-card"><div class="number text-secondary">{{ stats.completion_rate }}%</div><div class="label">完成率</div></div></div>
+</div>
+
+<!-- 筛选 -->
+<div class="card">
+    <div class="card-body">
+        <form class="form-inline" method="get">
+            <div class="form-group mr-2">
+                <select name="status" class="form-control form-control-sm" onchange="this.form.submit()">
+                    <option value="">全部状态</option>
+                    <option value="待处理" {% if status_filter=='待处理' %}selected{% endif %}>待处理</option>
+                    <option value="处理中" {% if status_filter=='处理中' %}selected{% endif %}>处理中</option>
+                    <option value="已完成" {% if status_filter=='已完成' %}selected{% endif %}>已完成</option>
+                    <option value="已关闭" {% if status_filter=='已关闭' %}selected{% endif %}>已关闭</option>
+                </select>
+            </div>
+            <div class="form-group mr-2">
+                <select name="city" class="form-control form-control-sm" onchange="this.form.submit()">
+                    <option value="">全部州市</option>
+                    {% for c in prefectures %}
+                    <option value="{{ c }}" {% if city_filter==c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group mr-2">
+                <select name="priority" class="form-control form-control-sm" onchange="this.form.submit()">
+                    <option value="">全部优先级</option>
+                    <option value="低" {% if priority_filter=='低' %}selected{% endif %}>低</option>
+                    <option value="中" {% if priority_filter=='中' %}selected{% endif %}>中</option>
+                    <option value="高" {% if priority_filter=='高' %}selected{% endif %}>高</option>
+                    <option value="紧急" {% if priority_filter=='紧急' %}selected{% endif %}>紧急</option>
+                </select>
+            </div>
+            <div class="form-group mr-2">
+                <input type="text" name="search" class="form-control form-control-sm" placeholder="搜索编号/单位/联系人/电话" value="{{ search }}" style="width:260px">
+            </div>
+            <button type="submit" class="btn btn-outline-primary btn-sm mr-2"><i class="fas fa-search"></i> 搜索</button>
+            <a href="{{ url_for('ticket_list') }}" class="btn btn-outline-secondary btn-sm">重置</a>
+            <a href="{{ url_for('ticket_export', status=status_filter, priority=priority_filter, city=city_filter, search=search) }}" class="btn btn-outline-success btn-sm ml-auto">
+                <i class="fas fa-file-export"></i> 导出CSV
+            </a>
+        </form>
+    </div>
+</div>
+
+<!-- 工单列表 -->
+<div class="card">
+    <div class="card-body p-0">
+        <form method="post" action="{{ url_for('ticket_batch_delete') }}" id="batchForm">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th width="40"><input type="checkbox" id="selectAll"></th>
+                        <th>工单编号</th>
+                        <th>接收日期</th>
+                        <th>用户单位</th>
+                        <th>联系人/电话</th>
+                        <th>州市</th>
+                        <th>优先级</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in tickets %}
+                    <tr>
+                        <td><input type="checkbox" name="ids" value="{{ t.id }}"></td>
+                        <td><a href="{{ url_for('ticket_detail', ticket_id=t.id) }}">{{ t.serial_no }}</a></td>
+                        <td>{{ t.receive_date.strftime('%m-%d') if t.receive_date else '' }}</td>
+                        <td title="{{ t.user_unit }}">{{ t.user_unit[:20] }}{% if t.user_unit|length > 20 %}...{% endif %}</td>
+                        <td>{{ t.contact_person }}<br><small class="text-muted">{{ t.contact_phone }}</small></td>
+                        <td>{{ t.city }}</td>
+                        <td>
+                            {% if t.priority == '低' %}<span class="badge badge-priority-low">低</span>
+                            {% elif t.priority == '高' %}<span class="badge badge-priority-high">高</span>
+                            {% elif t.priority == '紧急' %}<span class="badge badge-priority-urgent">紧急</span>
+                            {% else %}<span class="badge badge-priority-mid">中</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if t.status == '待处理' %}<span class="badge badge-status-pending">待处理</span>
+                            {% elif t.status == '处理中' %}<span class="badge badge-status-processing">处理中</span>
+                            {% elif t.status == '已完成' %}<span class="badge badge-status-completed">已完成</span>
+                            {% else %}<span class="badge badge-status-closed">已关闭</span>{% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('ticket_detail', ticket_id=t.id) }}" class="btn btn-outline-info btn-sm" title="查看"><i class="fas fa-eye"></i></a>
+                            <a href="{{ url_for('ticket_edit', ticket_id=t.id) }}" class="btn btn-outline-primary btn-sm" title="编辑"><i class="fas fa-edit"></i></a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="9" class="text-center text-muted py-4">暂无工单数据</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </form>
+    </div>
+    {% if pagination.pages > 1 %}
+    <div class="card-footer d-flex justify-content-between align-items-center">
+        <div>
+            <button class="btn btn-danger btn-sm" onclick="batchDelete()"><i class="fas fa-trash"></i> 批量删除</button>
+        </div>
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                {% if pagination.has_prev %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('ticket_list', page=pagination.prev_num, status=status_filter, priority=priority_filter, city=city_filter, search=search) }}">上一页</a></li>
+                {% endif %}
+                {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if p %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}"><a class="page-link" href="{{ url_for('ticket_list', page=p, status=status_filter, priority=priority_filter, city=city_filter, search=search) }}">{{ p }}</a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                {% if pagination.has_next %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('ticket_list', page=pagination.next_num, status=status_filter, priority=priority_filter, city=city_filter, search=search) }}">下一页</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+$('#selectAll').change(function() { $('input[name="ids"]').prop('checked', this.checked); });
+function batchDelete() {
+    var ids = $('input[name="ids"]:checked').map(function(){return this.value}).get();
+    if (ids.length === 0) { alert('请选择要删除的工单'); return; }
+    if (confirm('确定删除选中的 ' + ids.length + ' 条工单吗？')) { $('#batchForm').submit(); }
+}
+</script>
+{% endblock %}

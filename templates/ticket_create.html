@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% block title %}新建工单{% endblock %}
+{% block content %}
+<div class="page-header"><h4><i class="fas fa-plus-circle"></i> 新建工单</h4></div>
+<div class="card">
+    <div class="card-body">
+        <form method="post" id="ticketForm">
+            <div class="row">
+                <div class="col-md-4 form-group">
+                    <label>接收日期 <span class="text-danger">*</span></label>
+                    <input type="date" name="receive_date" class="form-control" value="{{ today }}" required>
+                </div>
+                <div class="col-md-4 form-group">
+                    <label>接收人</label>
+                    <input type="text" name="receiver" class="form-control" value="{{ session.display_name }}">
+                </div>
+                <div class="col-md-4 form-group">
+                    <label>优先级</label>
+                    <select name="priority" class="form-control">
+                        <option value="低">低</option>
+                        <option value="中" selected>中</option>
+                        <option value="高">高</option>
+                        <option value="紧急">紧急</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 form-group">
+                    <label>省份</label>
+                    <input type="text" class="form-control" value="云南省" readonly>
+                </div>
+                <div class="col-md-4 form-group">
+                    <label>州市 <span class="text-danger">*</span></label>
+                    <select name="city" id="city" class="form-control" required>
+                        <option value="">请选择</option>
+                        {% for c in prefectures %}
+                        <option value="{{ c }}">{{ c }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 form-group">
+                    <label>区县</label>
+                    <select name="county" id="county" class="form-control">
+                        <option value="">请先选择州市</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 form-group">
+                    <label>用户单位 <span class="text-danger">*</span></label>
+                    <input type="text" name="user_unit" class="form-control" required>
+                </div>
+                <div class="col-md-4 form-group">
+                    <label>联系人 <span class="text-danger">*</span></label>
+                    <input type="text" name="contact_person" class="form-control" required>
+                </div>
+                <div class="col-md-4 form-group">
+                    <label>联系电话 <span class="text-danger">*</span></label>
+                    <input type="text" name="contact_phone" class="form-control" placeholder="11位手机号" required>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 form-group">
+                    <label>故障类型</label>
+                    <select name="fault_type" id="fault_type" class="form-control">
+                        <option value="">请选择</option>
+                        {% for ft in fault_types %}
+                        <option value="{{ ft.name }}">{{ ft.name }}</option>
+                        {% endfor %}
+                        <option value="__custom__">自定义...</option>
+                    </select>
+                    <input type="text" name="custom_fault_type" id="custom_fault_type" class="form-control mt-2" placeholder="输入新故障类型" style="display:none">
+                </div>
+                <div class="col-md-4 form-group">
+                    <label>产品序列号</label>
+                    <input type="text" name="product_sn" class="form-control" placeholder="SN码">
+                </div>
+                <div class="col-md-4 form-group">
+                    <div class="form-check mt-4">
+                        <input type="checkbox" name="need_onsite" id="need_onsite" class="form-check-input">
+                        <label class="form-check-label" for="need_onsite">需要上门处理</label>
+                    </div>
+                </div>
+            </div>
+            <div id="onsite_fields" style="display:none">
+                <div class="row">
+                    <div class="col-md-4 form-group">
+                        <label>上门人员</label>
+                        <input type="text" name="onsite_person" class="form-control">
+                    </div>
+                    <div class="col-md-4 form-group">
+                        <label>上门日期</label>
+                        <input type="date" name="onsite_date" class="form-control">
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>问题现象 <span class="text-danger">*</span></label>
+                <textarea name="problem_desc" class="form-control" rows="3" required placeholder="请详细描述故障现象"></textarea>
+            </div>
+            <div class="form-group">
+                <label>处理详情</label>
+                <textarea name="solution_detail" class="form-control" rows="3" placeholder="处理过程和结果（可选）"></textarea>
+            </div>
+            <div class="form-group">
+                <label>备注</label>
+                <textarea name="remark" class="form-control" rows="2"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 提交工单</button>
+            <a href="{{ url_for('ticket_list') }}" class="btn btn-secondary">取消</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+// 三级联动
+$('#city').change(function(){
+    var city = $(this).val();
+    if (city) {
+        $.get('/api/regions/counties/' + encodeURIComponent(city), function(data){
+            var sel = $('#county').empty().append('<option value="">请选择区县</option>');
+            $.each(data, function(i, name){ sel.append('<option value="'+name+'">'+name+'</option>'); });
+        });
+    } else {
+        $('#county').empty().append('<option value="">请先选择州市</option>');
+    }
+});
+// 故障类型自定义
+$('#fault_type').change(function(){
+    if ($(this).val() === '__custom__') {
+        $('#custom_fault_type').show().prop('required', true).focus();
+    } else {
+        $('#custom_fault_type').hide().prop('required', false);
+    }
+});
+// 上门处理字段
+$('#need_onsite').change(function(){ $('#onsite_fields').toggle(this.checked); });
+</script>
+{% endblock %}

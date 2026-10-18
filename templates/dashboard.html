@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block title %}数据大屏{% endblock %}
+{% block extra_head %}
+<script src="{{ url_for('static', filename='lib/echarts/echarts.min.js') }}"></script>
+{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="fas fa-chart-bar"></i> 数据大屏</h4>
+    <form class="form-inline" id="filterForm">
+        <div class="form-group mr-2">
+            <input type="date" name="start" class="form-control form-control-sm" id="startDate">
+        </div>
+        <div class="form-group mr-2">
+            <input type="date" name="end" class="form-control form-control-sm" id="endDate">
+        </div>
+        <div class="form-group mr-2">
+            <select name="city" class="form-control form-control-sm" id="cityFilter">
+                <option value="">全部州市</option>
+                {% for c in prefectures %}
+                <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" onclick="loadData()"><i class="fas fa-sync"></i> 刷新</button>
+    </form>
+</div>
+
+<div class="row" id="statCards"></div>
+<div class="row">
+    <div class="col-md-8"><div class="card"><div class="card-header">月度工单趋势</div><div class="card-body"><div id="trendChart" style="height:350px"></div></div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-header">工单状态分布</div><div class="card-body"><div id="statusChart" style="height:350px"></div></div></div></div>
+</div>
+<div class="row">
+    <div class="col-md-6"><div class="card"><div class="card-header">故障类型占比</div><div class="card-body"><div id="faultChart" style="height:350px"></div></div></div></div>
+    <div class="col-md-6"><div class="card"><div class="card-header">地州工单分布</div><div class="card-body"><div id="cityChart" style="height:350px"></div></div></div></div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+var trendChart, statusChart, faultChart, cityChart;
+$(function(){
+    trendChart = echarts.init(document.getElementById('trendChart'));
+    statusChart = echarts.init(document.getElementById('statusChart'));
+    faultChart = echarts.init(document.getElementById('faultChart'));
+    cityChart = echarts.init(document.getElementById('cityChart'));
+    $(window).resize(function(){
+        trendChart.resize(); statusChart.resize(); faultChart.resize(); cityChart.resize();
+    });
+    loadData();
+});
+function loadData() {
+    var params = {};
+    var start = $('#startDate').val();
+    var end = $('#endDate').val();
+    var city = $('#cityFilter').val();
+    if (start) params.start = start;
+    if (end) params.end = end;
+    if (city) params.city = city;
+    $.get('/api/dashboard/stats', params, function(data) {
+        // 统计卡片
+        $('#statCards').html(
+            '<div class="col-md-2"><div class="card stat-card"><div class="number text-primary">'+data.total+'</div><div class="label">工单总数</div></div></div>' +
+            '<div class="col-md-2"><div class="card stat-card"><div class="number text-warning">'+data.pending+'</div><div class="label">待处理</div></div></div>' +
+            '<div class="col-md-2"><div class="card stat-card"><div class="number text-info">'+data.processing+'</div><div class="label">处理中</div></div></div>' +
+            '<div class="col-md-2"><div class="card stat-card"><div class="number text-success">'+data.completed+'</div><div class="label">已完成</div></div></div>' +
+            '<div class="col-md-2"><div class="card stat-card"><div class="number text-info">'+data.onsite+'</div><div class="label">上门工单</div></div></div>' +
+            '<div class="col-md-2"><div class="card stat-card"><div class="number text-success">'+data.completion_rate+'%</div><div class="label">完成率</div></div></div>'
+        );
+        // 状态分布
+        statusChart.setOption({
+            tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+            series: [{
+                type: 'pie', radius: ['40%','70%'], center: ['50%','55%'],
+                label: { formatter: '{b}\n{d}%' },
+                data: [
+                    { name: '待处理', value: data.pending, itemStyle: { color: '#1890ff' } },
+                    { name: '处理中', value: data.processing, itemStyle: { color: '#faad14' } },
+                    { name: '已完成', value: data.completed, itemStyle: { color: '#52c41a' } },
+                    { name: '已关闭', value: data.closed, itemStyle: { color: '#d9d9d9' } }
+                ]
+            }]
+        });
+        // 月度趋势
+        var months = data.month_data.map(function(d){return d.month;});
+        trendChart.setOption({
+            tooltip: { trigger: 'axis' },
+            xAxis: { type: 'category', data: months },
+            yAxis: { type: 'value', minInterval: 1 },
+            series: [
+                { name: '工单数', type: 'bar', barGap: 0, data: data.month_data.map(function(d){return d.total;}), itemStyle: { color: '#1890ff' } },
+                { name: '完成数', type: 'line', smooth: true, data: data.month_data.map(function(d){return d.completed;}), itemStyle: { color: '#52c41a' } }
+            ],
+            legend: { data: ['工单数','完成数'] },
+            grid: { left: 60, right: 20, bottom: 30 }
+        });
+        // 故障类型
+        faultChart.setOption({
+            tooltip: { trigger: 'item', formatter: '{b}: {c}' },
+            series: [{
+                type: 'pie', radius: '65%',
+                label: { formatter: '{b}\n({d}%)', fontSize: 11 },
+                data: data.fault_data.length ? data.fault_data : [{name: '暂无数据', value: 1}]
+            }]
+        });
+        // 地州分布
+        cityChart.setOption({
+            tooltip: { trigger: 'axis' },
+            xAxis: { type: 'category', data: data.city_data.map(function(d){return d.name;}), axisLabel: { rotate: 45, fontSize: 11 } },
+            yAxis: { type: 'value', minInterval: 1 },
+            series: [{ type: 'bar', data: data.city_data.map(function(d){return d.value;}), itemStyle: { color: '#1890ff' } }],
+            grid: { left: 50, right: 20, bottom: 80 }
+        });
+    });
+}
+</script>
+{% endblock %}

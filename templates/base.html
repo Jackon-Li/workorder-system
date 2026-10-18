@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}售后工单管理系统{% endblock %}</title>
+    <link href="{{ url_for('static', filename='lib/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='lib/fontawesome/css/all.min.css') }}" rel="stylesheet">
+    {% block extra_head %}{% endblock %}
+    <style>
+        body { background: #f0f2f5; font-family: -apple-system, "Microsoft YaHei", sans-serif; }
+        .sidebar { min-height: calc(100vh - 56px); background: #001529; }
+        .sidebar .nav-link { color: rgba(255,255,255,.65); padding: 12px 20px; border-left: 3px solid transparent; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: #1890ff22; border-left-color: #1890ff; }
+        .sidebar .nav-link i { width: 20px; margin-right: 8px; }
+        .main-content { padding: 20px; }
+        .card { border: none; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+        .card-header { background: #fff; border-bottom: 1px solid #f0f0f0; font-weight: 600; padding: 14px 20px; }
+        .stat-card { text-align: center; padding: 20px; }
+        .stat-card .number { font-size: 28px; font-weight: 700; }
+        .stat-card .label { font-size: 13px; color: #888; margin-top: 4px; }
+        .page-header { margin-bottom: 20px; }
+        .page-header h4 { font-weight: 600; margin: 0; }
+        .table th { background: #fafafa; border-top: none; font-weight: 600; font-size: 13px; }
+        .table td { vertical-align: middle; font-size: 13px; }
+        .badge-priority-low { background: #d9f7be; color: #389e0d; }
+        .badge-priority-mid { background: #fff7e6; color: #d48806; }
+        .badge-priority-high { background: #ffe7ba; color: #d46b08; }
+        .badge-priority-urgent { background: #ffccc7; color: #cf1322; }
+        .badge-status-pending { background: #e6f7ff; color: #096dd9; }
+        .badge-status-processing { background: #fff7e6; color: #d48806; }
+        .badge-status-completed { background: #d9f7be; color: #389e0d; }
+        .badge-status-closed { background: #f5f5f5; color: #8c8c8c; }
+        .footer { text-align: center; padding: 16px; color: #999; font-size: 12px; }
+    </style>
+</head>
+<body>
+    {% if session.user_id %}
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background:#001529">
+        <a class="navbar-brand" href="{{ url_for('ticket_list') }}">
+            <i class="fas fa-ticket-alt"></i> 售后工单管理系统
+        </a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">
+                        <i class="fas fa-user-circle"></i> {{ session.display_name }}
+                        {% if session.is_admin %}<span class="badge badge-danger ml-1">管理员</span>{% endif %}
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right">
+                        <a class="dropdown-item" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> 退出登录</a>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-2 sidebar p-0">
+                <ul class="nav flex-column">
+                    <li class="nav-item"><a class="nav-link {% if request.path == url_for('ticket_list') %}active{% endif %}" href="{{ url_for('ticket_list') }}"><i class="fas fa-list"></i> 工单列表</a></li>
+                    <li class="nav-item"><a class="nav-link {% if request.path == url_for('ticket_create') %}active{% endif %}" href="{{ url_for('ticket_create') }}"><i class="fas fa-plus-circle"></i> 新建工单</a></li>
+                    <li class="nav-item"><a class="nav-link {% if request.path == url_for('dashboard') %}active{% endif %}" href="{{ url_for('dashboard') }}"><i class="fas fa-chart-bar"></i> 数据大屏</a></li>
+                    <li class="nav-item"><a class="nav-link {% if request.path == url_for('ticket_import') %}active{% endif %}" href="{{ url_for('ticket_import') }}"><i class="fas fa-upload"></i> 批量导入</a></li>
+                    <li class="nav-item"><a class="nav-link {% if request.path == url_for('ticket_histories') %}active{% endif %}" href="{{ url_for('ticket_histories') }}"><i class="fas fa-history"></i> 操作日志</a></li>
+                    {% if session.is_admin %}
+                    <li class="nav-item"><a class="nav-link {% if request.path == url_for('user_list') %}active{% endif %}" href="{{ url_for('user_list') }}"><i class="fas fa-users-cog"></i> 用户管理</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+            <div class="col-md-10 main-content">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="close" data-dismiss="alert">&times;</button>
+                </div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+    <div class="footer">售后工单管理系统 v1.0.0 &copy; 2026</div>
+    {% else %}
+    {% block standalone %}{% endblock %}
+    {% endif %}
+    <script src="{{ url_for('static', filename='lib/jquery/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='lib/bootstrap/bootstrap.bundle.min.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

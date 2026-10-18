@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}批量导入工单{% endblock %}
+{% block content %}
+<div class="page-header"><h4><i class="fas fa-upload"></i> 批量导入工单</h4></div>
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">上传文件</div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <strong>导入说明：</strong>
+                    <ul class="mb-0">
+                        <li>请先下载模板，按模板格式填写数据</li>
+                        <li>日期格式：YYYY-MM-DD</li>
+                        <li>"是否需要上门处理"填写"是"或"否"</li>
+                        <li>工单编号留空则自动生成</li>
+                        <li>支持 CSV 格式（UTF-8 编码）</li>
+                    </ul>
+                </div>
+                <form method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label>选择 CSV 文件</label>
+                        <div class="custom-file">
+                            <input type="file" name="file" class="custom-file-input" id="fileInput" accept=".csv" required>
+                            <label class="custom-file-label" for="fileInput">选择文件...</label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success"><i class="fas fa-upload"></i> 开始导入</button>
+                    <a href="{{ url_for('export_template') }}" class="btn btn-info"><i class="fas fa-download"></i> 下载模板</a>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">模板字段说明</div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead><tr><th>字段</th><th>必填</th><th>说明</th></tr></thead>
+                    <tbody>
+                        <tr><td>接收日期</td><td class="text-danger">是</td><td>YYYY-MM-DD</td></tr>
+                        <tr><td>用户单位</td><td class="text-danger">是</td><td>完整单位名称</td></tr>
+                        <tr><td>联系人</td><td class="text-danger">是</td><td>联系人姓名</td></tr>
+                        <tr><td>联系电话</td><td class="text-danger">是</td><td>11位手机号</td></tr>
+                        <tr><td>问题现象</td><td class="text-danger">是</td><td>详细描述</td></tr>
+                        <tr><td>州市</td><td class="text-danger">是</td><td>云南省下辖地州</td></tr>
+                        <tr><td>区县</td><td>否</td><td>对应州市下区县</td></tr>
+                        <tr><td>故障类型</td><td>否</td><td>从系统类型中选择</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+$('#fileInput').change(function(){
+    var name = $(this).val().split('\\').pop();
+    $(this).next('.custom-file-label').text(name || '选择文件...');
+});
+</script>
+{% endblock %}

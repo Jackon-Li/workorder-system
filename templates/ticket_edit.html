@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+{% block title %}编辑工单 - {{ ticket.serial_no }}{% endblock %}
+{% block content %}
+<div class="page-header"><h4><i class="fas fa-edit"></i> 编辑工单 {{ ticket.serial_no }}</h4></div>
+<div class="card">
+    <div class="card-body">
+        <form method="post">
+            <div class="row">
+                <div class="col-md-4 form-group">
+                    <label>接收日期 <span class="text-danger">*</span></label>
+                    <input type="date" name="receive_date" class="form-control" value="{{ ticket.receive_date.strftime('%Y-%m-%d') if ticket.receive_date else '' }}" required>
+                </div>
+                <div class="col-md-4 form-group">
+                    <label>接收人</label>
+                    <input type="text" name="receiver" class="form-control" value="{{ ticket.receiver }}">
+                </div>
+                <div class="col-md-4 form-group">
+                    <label>优先级</label>
+                    <select name="priority" class="form-control">
+                        <option value="低" {% if ticket.priority=='低' %}selected{% endif %}>低</option>
+                        <option value="中" {% if ticket.priority=='中' %}selected{% endif %}>中</option>
+                        <option value="高" {% if ticket.priority=='高' %}selected{% endif %}>高</option>
+                        <option value="紧急" {% if ticket.priority=='紧急' %}selected{% endif %}>紧急</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 form-group">
+                    <label>省份</label>
+                    <input type="text" class="form-control" value="云南省" readonly>
+                </div>
+                <div class="col-md-4 form-group">
+                    <label>州市 <span class="text-danger">*</span></label>
+                    <select name="city" id="city" class="form-control" required>
+                        <option value="">请选择</option>
+                        {% for c in prefectures %}
+                        <option value="{{ c }}" {% if ticket.city==c %}selected{% endif %}>{{ c }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 form-group">
+                    <label>区县</label>
+                    <select name="county" id="county" class="form-control">
+                        <option value="">请选择</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 form-group">
+                    <label>用户单位 <span class="text-danger">*</span></label>
+                    <input type="text" name="user_unit" class="form-control" value="{{ ticket.user_unit }}" required>
+                </div>
+                <div class="col-md-4 form-group">
+                    <label>联系人 <span class="text-danger">*</span></label>
+                    <input type="text" name="contact_person" class="form-control" value="{{ ticket.contact_person }}" required>
+                </div>
+                <div class="col-md-4 form-group">
+                    <label>联系电话 <span class="text-danger">*</span></label>
+                    <input type="text" name="contact_phone" class="form-control" value="{{ ticket.contact_phone }}" required>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 form-group">
+                    <label>故障类型</label>
+                    <select name="fault_type" id="fault_type" class="form-control">
+                        <option value="">请选择</option>
+                        {% for ft in fault_types %}
+                        <option value="{{ ft.name }}" {% if ticket.fault_type==ft.name %}selected{% endif %}>{{ ft.name }}</option>
+                        {% endfor %}
+                        <option value="__custom__" {% if ticket.custom_fault_type %}selected{% endif %}>自定义...</option>
+                    </select>
+                    <input type="text" name="custom_fault_type" id="custom_fault_type" class="form-control mt-2" placeholder="输入新故障类型" value="{{ ticket.custom_fault_type }}" style="display:{% if ticket.custom_fault_type %}block{% else %}none{% endif %}">
+                </div>
+                <div class="col-md-4 form-group">
+                    <label>产品序列号</label>
+                    <input type="text" name="product_sn" class="form-control" value="{{ ticket.product_sn }}">
+                </div>
+                <div class="col-md-4 form-group">
+                    <div class="form-check mt-4">
+                        <input type="checkbox" name="need_onsite" id="need_onsite" class="form-check-input" {% if ticket.need_onsite %}checked{% endif %}>
+                        <label class="form-check-label" for="need_onsite">需要上门处理</label>
+                    </div>
+                </div>
+            </div>
+            <div id="onsite_fields" style="display:{% if ticket.need_onsite %}block{% else %}none{% endif %}">
+                <div class="row">
+                    <div class="col-md-4 form-group">
+                        <label>上门人员</label>
+                        <input type="text" name="onsite_person" class="form-control" value="{{ ticket.onsite_person }}">
+                    </div>
+                    <div class="col-md-4 form-group">
+                        <label>上门日期</label>
+                        <input type="date" name="onsite_date" class="form-control" value="{{ ticket.onsite_date.strftime('%Y-%m-%d') if ticket.onsite_date else '' }}">
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>问题现象 <span class="text-danger">*</span></label>
+                <textarea name="problem_desc" class="form-control" rows="3" required>{{ ticket.problem_desc }}</textarea>
+            </div>
+            <div class="form-group">
+                <label>处理详情</label>
+                <textarea name="solution_detail" class="form-control" rows="3">{{ ticket.solution_detail }}</textarea>
+            </div>
+            <div class="form-group">
+                <label>备注</label>
+                <textarea name="remark" class="form-control" rows="2">{{ ticket.remark }}</textarea>
+            </div>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 保存修改</button>
+            <a href="{{ url_for('ticket_detail', ticket_id=ticket.id) }}" class="btn btn-secondary">取消</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+$('#city').change(function(){
+    var city = $(this).val();
+    if (city) {
+        $.get('/api/regions/counties/' + encodeURIComponent(city), function(data){
+            var sel = $('#county').empty().append('<option value="">请选择区县</option>');
+            var current = '{{ ticket.county }}';
+            $.each(data, function(i, name){
+                var opt = $('<option>').val(name).text(name);
+                if (name === current) opt.attr('selected', true);
+                sel.append(opt);
+            });
+        });
+    }
+});
+// 触发 county 加载
+{% if ticket.city %}$('#city').trigger('change');{% endif %}
+$('#fault_type').change(function(){
+    if ($(this).val() === '__custom__') {
+        $('#custom_fault_type').show().prop('required', true).focus();
+    } else {
+        $('#custom_fault_type').hide().prop('required', false);
+    }
+});
+$('#need_onsite').change(function(){ $('#onsite_fields').toggle(this.checked); });
+</script>
+{% endblock %}

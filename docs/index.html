@@ -1,0 +1,2047 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>售后工单管理系统 · 内网离线工单台账</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b1020'/%3E%3Cpath d='M8 11h16v3a3 3 0 0 0 0 6v3H8v-3a3 3 0 0 0 0-6z' fill='none' stroke='%2322d3ee' stroke-width='2'/%3E%3C/svg%3E">
+<meta name="description" content="Flask + SQLite 的售后工单管理系统，面向 10 人以内内网团队，支持离线部署、四态流转、批量导入与数据大屏。含可交互在线演示。">
+<meta name="theme-color" content="#06080f">
+<meta property="og:type" content="website">
+<meta property="og:title" content="售后工单管理系统 · 把工单从 Excel 里捞出来">
+<meta property="og:description" content="面向内网单机、10 人以内售后团队的工单系统。统一编号、四态流转、全程留痕，零公网依赖，可在麒麟 V10 离线部署。">
+<meta property="og:url" content="https://jackon-li.github.io/workorder-system/">
+<meta name="twitter:card" content="summary_large_image">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:site_name" content="售后工单管理系统">
+<meta name="twitter:title" content="售后工单管理系统 · 内网离线工单台账">
+<meta name="twitter:description" content="Flask + SQLite，四态流转与数据大屏，零公网依赖，可离线部署到麒麟 V10。">
+<meta name="twitter:title" content="售后工单管理系统">
+<meta name="twitter:description" content="Flask + SQLite 离线工单系统 · 四态流转 · 批量导入 · 数据大屏">
+<style>
+/* ============ tokens ============ */
+:root{
+  --max: 1160px;
+  --bg: #06080f;
+  --bg2: #0a1020;
+  --panel: rgba(255,255,255,.035);
+  --panel-2: rgba(255,255,255,.06);
+  --line: rgba(255,255,255,.09);
+  --line-2: rgba(255,255,255,.18);
+  --text: #e9eefc;
+  --muted: #98a5c0;
+  --dim: #6c7994;
+  --cyan: #22d3ee;
+  --violet: #a78bfa;
+  --green: #34d399;
+  --amber: #fbbf24;
+  --rose: #fb7185;
+  --r: 16px;
+  --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+html[data-theme="light"]{
+  --bg: #f6f8fc; --bg2: #eef2f9;
+  --panel: rgba(255,255,255,.9); --panel-2: #fff;
+  --line: rgba(15,23,42,.10); --line-2: rgba(15,23,42,.2);
+  --text: #101828; --muted: #4a5568; --dim: #7a869c;
+  --cyan: #0891b2; --violet: #7c3aed; --green: #059669;
+  --amber: #b45309; --rose: #e11d48;
+}
+@media (prefers-color-scheme: light){
+  html:not([data-theme="dark"]){
+    --bg: #f6f8fc; --bg2: #eef2f9;
+    --panel: rgba(255,255,255,.9); --panel-2: #fff;
+    --line: rgba(15,23,42,.10); --line-2: rgba(15,23,42,.2);
+    --text: #101828; --muted: #4a5568; --dim: #7a869c;
+    --cyan: #0891b2; --violet: #7c3aed; --green: #059669;
+    --amber: #b45309; --rose: #e11d48;
+  }
+}
+*{ box-sizing: border-box; }
+html{ scroll-behavior: smooth; }
+body{
+  margin:0; background: var(--bg); color: var(--text);
+  font-family: var(--sans); line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+body::before{
+  content:""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(900px 520px at 12% -8%, rgba(34,211,238,.13), transparent 60%),
+    radial-gradient(760px 480px at 88% 4%, rgba(167,139,250,.12), transparent 62%),
+    linear-gradient(transparent 0 39px, var(--line) 39px 40px),
+    linear-gradient(90deg, transparent 0 39px, var(--line) 39px 40px);
+  background-size: auto, auto, 40px 40px, 40px 40px;
+  opacity:.55;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 30%, transparent 78%);
+}
+main, header, footer{ position: relative; z-index: 1; }
+a{ color: inherit; }
+code, pre, .mono{ font-family: var(--mono); }
+::selection{ background: rgba(34,211,238,.28); }
+
+#progress{ position: fixed; top:0; left:0; height: 2px; width:0; z-index: 90;
+  background: linear-gradient(90deg, var(--cyan), var(--violet)); }
+
+/* ============ nav ============ */
+.nav{
+  position: sticky; top:0; z-index: 60;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  border-bottom: 1px solid var(--line);
+}
+.nav-inner{ max-width: var(--max); margin:0 auto; padding: 12px 22px;
+  display:flex; align-items:center; gap: 18px; }
+.brand{ display:flex; align-items:center; gap:10px; text-decoration:none; font-weight: 700; letter-spacing:-.02em; }
+.brand .mark{
+  width: 26px; height: 26px; border-radius: 8px; display:grid; place-items:center;
+  background: linear-gradient(135deg, var(--cyan), var(--violet));
+  box-shadow: 0 0 0 1px rgba(255,255,255,.12) inset;
+}
+.brand .mark svg{ width:15px; height:15px; }
+.nav-links{ margin-left:auto; display:flex; gap: 2px; }
+.nav-links a{
+  text-decoration:none; font-size: 13.5px; color: var(--muted);
+  padding: 7px 11px; border-radius: 8px; transition: .18s;
+}
+.nav-links a:hover{ color: var(--text); background: var(--panel-2); }
+.nav-actions{ display:flex; align-items:center; gap:8px; }
+.icon-btn{
+  width: 32px; height: 32px; border-radius: 9px; display:grid; place-items:center;
+  border:1px solid var(--line); background: transparent; color: var(--muted); cursor:pointer;
+  transition:.18s;
+}
+.icon-btn:hover{ color: var(--text); border-color: var(--line-2); }
+.btn{
+  display:inline-flex; align-items:center; gap:8px; text-decoration:none;
+  padding: 8px 14px; border-radius: 10px; font-size: 13.5px; font-weight: 600;
+  border: 1px solid var(--line-2); color: var(--text); background: transparent;
+  cursor: pointer; transition: .18s; white-space: nowrap;
+}
+.btn:hover{ border-color: var(--cyan); color: var(--cyan); }
+.btn-primary{
+  background: linear-gradient(135deg, var(--cyan), var(--violet));
+  color: #04121a; border-color: transparent;
+  box-shadow: 0 10px 26px -14px rgba(34,211,238,.8);
+}
+.btn-primary:hover{ color:#04121a; filter: brightness(1.06); transform: translateY(-1px); }
+html[data-theme="light"] .btn-primary{ color:#fff; }
+
+/* ============ hero ============ */
+.wrap{ max-width: var(--max); margin: 0 auto; padding: 0 22px; }
+.hero{ padding: 74px 0 56px; }
+.pill{
+  display:inline-flex; align-items:center; gap:9px;
+  font-family: var(--mono); font-size: 11.5px; letter-spacing:.06em;
+  color: var(--muted); border:1px solid var(--line); background: var(--panel);
+  padding: 6px 12px; border-radius: 999px;
+}
+.pill .dot{ width:6px; height:6px; border-radius:50%; background: var(--green);
+  box-shadow: 0 0 0 3px rgba(52,211,153,.16); animation: pulse 2.4s infinite; }
+@keyframes pulse{ 0%,100%{ opacity:1 } 50%{ opacity:.35 } }
+h1.title{
+  font-size: clamp(38px, 6.2vw, 70px); line-height: 1.06; letter-spacing: -.035em;
+  margin: 22px 0 18px; font-weight: 800;
+}
+.grad{
+  background: linear-gradient(100deg, var(--cyan) 0%, #7dd3fc 32%, var(--violet) 78%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.lede{ max-width: 660px; font-size: clamp(15px,1.6vw,17.5px); color: var(--muted); margin: 0 0 26px; }
+.lede strong{ color: var(--text); font-weight: 650; }
+.cta-row{ display:flex; align-items:center; gap: 12px; flex-wrap: wrap; }
+.cta-row .hint{ font-family: var(--mono); font-size: 12px; color: var(--dim); }
+.stats{
+  margin-top: 46px; display:grid; grid-template-columns: repeat(4,1fr);
+  border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+}
+.stat{ padding: 18px 4px 18px 18px; border-left:1px solid var(--line); }
+.stat:first-child{ border-left:none; padding-left:0; }
+.stat b{ display:block; font-size: clamp(24px,3vw,32px); font-weight:800; letter-spacing:-.03em; }
+.stat span{ font-size: 13px; color: var(--muted); }
+.stat small{ display:block; font-family: var(--mono); font-size:10.5px; letter-spacing:.14em; color: var(--dim); margin-top:2px; }
+
+/* ============ section ============ */
+section{ padding: 78px 0; }
+.sec-head{ max-width: 720px; margin-bottom: 34px; }
+.kicker{
+  font-family: var(--mono); font-size: 11.5px; letter-spacing:.18em;
+  text-transform: uppercase; color: var(--cyan); margin-bottom: 10px;
+}
+h2.h2{ font-size: clamp(25px,3.4vw,38px); line-height:1.22; letter-spacing:-.03em; margin:0 0 12px; font-weight: 750; }
+.sub{ color: var(--muted); font-size: 15px; margin:0; }
+
+/* ============ pains ============ */
+.pains{ display:grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.card{
+  background: var(--panel); border:1px solid var(--line); border-radius: var(--r);
+  padding: 22px; transition: .22s; position: relative; overflow: hidden;
+}
+.card:hover{ border-color: var(--line-2); transform: translateY(-2px); }
+.pain .tag{
+  font-family: var(--mono); font-size:10.5px; letter-spacing:.14em;
+  color: var(--rose); text-transform: uppercase;
+}
+.pain h3{ font-size: 17.5px; margin: 8px 0 8px; letter-spacing:-.01em; }
+.pain p{ font-size: 14px; color: var(--muted); margin:0 0 16px; }
+.fix{ display:flex; gap:9px; align-items:flex-start; font-size: 13.2px;
+  border-top:1px dashed var(--line); padding-top: 13px; color: var(--muted); }
+.fix svg{ flex:0 0 auto; margin-top: 4px; color: var(--green); }
+.fix b{ color: var(--text); }
+code{ font-size: .9em; padding: 1px 5px; border-radius: 5px;
+  background: var(--panel-2); border:1px solid var(--line); }
+
+/* ============ demo ============ */
+.demo-wrap{ position: relative; }
+.browser{
+  border:1px solid var(--line-2); border-radius: 18px; overflow: hidden;
+  background: var(--panel-2); box-shadow: 0 50px 100px -50px rgba(0,0,0,.75);
+}
+.chrome{
+  display:flex; align-items:center; gap: 10px; padding: 9px 14px;
+  background: var(--bg2); border-bottom:1px solid var(--line);
+}
+.dots{ display:flex; gap:6px; }
+.dots i{ width:9px; height:9px; border-radius:50%; background: var(--line-2); display:block; }
+.dots i:nth-child(1){ background:#ff5f57 } .dots i:nth-child(2){ background:#febc2e } .dots i:nth-child(3){ background:#28c840 }
+.url{
+  flex:1; font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+  background: var(--panel); border:1px solid var(--line); border-radius: 7px;
+  padding: 4px 10px; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.chrome .badge-static{
+  font-family: var(--mono); font-size:10.5px; letter-spacing:.1em;
+  color: var(--amber); border:1px solid var(--line); border-radius:6px; padding:2px 7px;
+}
+
+/* ---- product app (light, fixed palette) ---- */
+.app{
+  --a-bg:#f0f2f5; --a-ink:#1f2d45; --a-muted:#7b879d; --a-line:#e6ebf2;
+  --a-primary:#1890ff; --a-navy:#001529; --a-warn:#faad14; --a-ok:#52c41a;
+  display:grid; grid-template-columns: 194px 1fr; height: 700px;
+  position: relative; overflow: hidden;
+  background: var(--a-bg); color: var(--a-ink);
+  font-size: 13px; line-height:1.55;
+  font-family: var(--sans);
+}
+.app *{ box-sizing: border-box; }
+.rail{ background: var(--a-navy); padding: 14px 0; display:flex; flex-direction:column; }
+.rail .r-brand{
+  display:flex; align-items:center; gap:8px; color:#fff; font-weight:700; font-size:13.5px;
+  padding: 0 16px 16px; border-bottom:1px solid rgba(255,255,255,.08); margin-bottom:10px;
+}
+.rail .r-brand span.ico{ width:20px; height:20px; border-radius:5px; background: linear-gradient(135deg,#40a9ff,#722ed1); display:grid; place-items:center; font-size:11px; }
+.rail a{
+  display:flex; align-items:center; gap:9px; color: rgba(255,255,255,.62); text-decoration:none;
+  padding: 10px 16px; font-size:12.8px; border-left:3px solid transparent; cursor:pointer;
+  transition:.15s;
+}
+.rail a:hover{ color:#fff; background: rgba(255,255,255,.05); }
+.rail a.active{ color:#fff; background: rgba(24,144,255,.16); border-left-color: var(--a-primary); }
+.rail a i, .rail a svg{ width:15px; height:15px; flex:0 0 15px; opacity:.9; }
+.rail .r-foot{ margin-top:auto; padding: 12px 16px 0; border-top:1px solid rgba(255,255,255,.08); color: rgba(255,255,255,.45); font-size:11px; }
+.r-user{ display:flex; align-items:center; gap:8px; color:rgba(255,255,255,.75); font-size:12px; padding: 8px 16px; }
+.r-user .av{ width:22px; height:22px; border-radius:50%; background: rgba(255,255,255,.14); display:grid; place-items:center; font-size:10.5px; }
+
+.main-a{ display:flex; flex-direction:column; min-width:0; background: var(--a-bg); }
+.topbar{
+  height: 48px; background:#fff; border-bottom:1px solid var(--a-line);
+  display:flex; align-items:center; gap:10px; padding: 0 16px; flex:0 0 auto;
+}
+.crumb{ font-size:12.5px; color: var(--a-muted); }
+.crumb b{ color: var(--a-ink); font-weight:600; }
+.topbar .spacer{ flex:1; }
+.topbar .who{ font-size:12px; color: var(--a-muted); display:flex; align-items:center; gap:6px; }
+.tag-admin{ background:#fff1f0; color:#cf1322; border:1px solid #ffccc7; font-size:10px; padding:0 5px; border-radius:3px; }
+.pane{ display:none; padding: 14px 16px 18px; overflow:auto; flex:1; }
+.pane.on{ display:block; }
+.pane-head{ display:flex; align-items:center; gap:10px; margin-bottom: 12px; }
+.pane-head h4{ margin:0; font-size:15px; font-weight:700; }
+.pane-head .spacer{ flex:1; }
+
+.a-btn{
+  display:inline-flex; align-items:center; gap:5px; height:29px; padding: 0 10px;
+  border-radius:4px; border:1px solid #d9e1ec; background:#fff; color: var(--a-ink);
+  font-size:12.3px; cursor:pointer; transition:.15s; font-family:inherit; white-space:nowrap;
+}
+.a-btn:hover{ color: var(--a-primary); border-color:#91caff; }
+.a-btn.primary{ background: var(--a-primary); border-color: var(--a-primary); color:#fff; }
+.a-btn.primary:hover{ background:#40a9ff; color:#fff; }
+.a-btn.ghost{ background:#fff; color: var(--a-muted); }
+.a-btn.sm{ height:24px; padding:0 7px; font-size:11.5px; }
+.a-btn.success{ background:#52c41a; border-color:#52c41a; color:#fff; }
+.a-btn.warn{ background:#faad14; border-color:#faad14; color:#fff; }
+.a-btn.danger{ color:#cf1322; border-color:#ffccc7; background:#fff1f0; }
+.a-btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+.a-input, .a-select{
+  height: 29px; border:1px solid #d9e1ec; border-radius:4px; background:#fff;
+  padding: 0 8px; font-size:12.3px; color: var(--a-ink); font-family:inherit; outline:none;
+  transition:.15s;
+}
+.a-input:focus, .a-select:focus, .a-area:focus{ border-color:#40a9ff; box-shadow:0 0 0 2px rgba(24,144,255,.12); }
+.a-area{ width:100%; border:1px solid #d9e1ec; border-radius:4px; padding:7px 8px; font-size:12.5px;
+  font-family:inherit; color:var(--a-ink); resize:vertical; outline:none; background:#fff; }
+.a-label{ display:block; font-size:12px; color: var(--a-muted); margin-bottom:4px; }
+.a-label em{ color:#cf1322; font-style:normal; margin-left:2px; }
+
+.stat-row{ display:grid; grid-template-columns: repeat(5,1fr); gap:10px; margin-bottom:12px; }
+.stat-row.six{ grid-template-columns: repeat(6,1fr); }
+.a-card{ background:#fff; border-radius:6px; box-shadow:0 1px 3px rgba(20,35,60,.07); }
+.a-stat{ padding: 12px 8px; text-align:center; }
+.a-stat .n{ font-size: 22px; font-weight:700; line-height:1.2; }
+.a-stat .l{ font-size:11.5px; color: var(--a-muted); }
+.n-blue{color:#1890ff}.n-orange{color:#faad14}.n-cyan{color:#13c2c2}.n-green{color:#52c41a}.n-gray{color:#8c8c8c}
+
+.toolbar{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding: 9px 12px; margin-bottom:10px; }
+.toolbar .grow{ flex:1; }
+
+.a-table{ width:100%; border-collapse: collapse; }
+.a-table th{
+  background:#fafcff; text-align:left; font-size:11.5px; font-weight:600; color: var(--a-muted);
+  padding: 8px 10px; border-bottom:1px solid var(--a-line); white-space:nowrap;
+}
+.a-table td{ padding: 7px 10px; border-bottom:1px solid #f2f5f9; font-size:12.3px; vertical-align: middle; }
+.a-table tbody tr{ cursor:pointer; transition:.12s; }
+.a-table tbody tr:hover{ background:#f5f9ff; }
+.a-table .no{ color: var(--a-primary); font-family: var(--mono); font-size:11.8px; }
+.a-table .unit{ max-width: 150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.a-table .sub{ font-size:11px; color: var(--a-muted); }
+.mono-s{ font-family: var(--mono); font-size: 11.5px; }
+
+.bdg{ display:inline-block; font-size:11px; line-height:18px; padding: 0 7px; border-radius:3px; border:1px solid transparent; }
+.b-low{ background:#f6ffed; color:#389e0d; border-color:#d9f7be }
+.b-mid{ background:#fffbe6; color:#d48806; border-color:#fff1b8 }
+.b-high{ background:#fff7e6; color:#d46b08; border-color:#ffe7ba }
+.b-urgent{ background:#fff1f0; color:#cf1322; border-color:#ffccc7 }
+.s-pending{ background:#e6f7ff; color:#096dd9; border-color:#bae7ff }
+.s-processing{ background:#fff7e6; color:#d48806; border-color:#ffe7ba }
+.s-completed{ background:#f6ffed; color:#389e0d; border-color:#d9f7be }
+.s-closed{ background:#fafafa; color:#8c8c8c; border-color:#e8e8e8 }
+
+.pager{ display:flex; align-items:center; gap:8px; padding:10px 12px; border-top:1px solid var(--a-line); font-size:12px; color:var(--a-muted); }
+.pager .spacer{ flex:1; }
+.pg{ min-width:24px; height:24px; padding:0 6px; border:1px solid #d9e1ec; background:#fff; border-radius:4px; font-size:12px; cursor:pointer; color:var(--a-ink); }
+.pg.on{ background: var(--a-primary); border-color: var(--a-primary); color:#fff; }
+.pg:disabled{ opacity:.4; cursor:not-allowed; }
+
+.empty{ padding: 44px 0; text-align:center; color: var(--a-muted); font-size:12.5px; }
+
+/* dashboard */
+.chart-grid{ display:grid; grid-template-columns: 1.75fr 1fr; gap:10px; margin-bottom:10px; }
+.chart-grid.two{ grid-template-columns: 1fr 1fr; }
+.chart-card{ background:#fff; border-radius:6px; box-shadow:0 1px 3px rgba(20,35,60,.07); padding: 12px 14px 8px; }
+.chart-card h5{ margin:0 0 2px; font-size:12.8px; font-weight:600; }
+.chart-card .cap{ font-size:11px; color:var(--a-muted); margin-bottom:6px; }
+.chart-card svg{ width:100%; height:auto; display:block; }
+
+/* form */
+.form-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.form-grid .full{ grid-column: 1/-1; }
+.form-card{ background:#fff; border-radius:6px; box-shadow:0 1px 3px rgba(20,35,60,.07); padding: 16px; }
+.form-foot{ display:flex; gap:8px; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid var(--a-line); }
+.form-tip{ font-size:11.5px; color:var(--a-muted); margin-right:auto; }
+
+/* import */
+.drop{
+  border:1.5px dashed #b7c6da; border-radius:8px; padding: 26px; text-align:center;
+  color: var(--a-muted); background:#fbfdff; font-size:12.5px;
+}
+.drop b{ color: var(--a-ink); }
+.imp-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+pre.csv{ background:#0d1726; color:#cfe0f5; border-radius:6px; padding: 10px 12px; overflow:auto;
+  font-size: 11.2px; line-height:1.7; max-height: 168px; margin: 8px 0 0; }
+.imp-log{ margin-top:10px; }
+.imp-log div{ display:flex; gap:8px; font-size:12px; padding: 4px 0; border-bottom:1px dashed var(--a-line); }
+.imp-log .ok{ color:#389e0d } .imp-log .bad{ color:#cf1322 }
+
+/* logs/users */
+.timeline{ padding: 2px 4px; }
+.tl-item{ display:flex; gap:10px; padding: 7px 0; border-bottom:1px dashed var(--a-line); font-size:12.3px; }
+.tl-item:last-child{ border-bottom:none; }
+.tl-dot{ width:7px; height:7px; border-radius:50%; background: var(--a-primary); margin-top:7px; flex:0 0 7px; }
+.tl-t{ font-family:var(--mono); font-size:11.3px; color:var(--a-muted); width:132px; flex:0 0 132px; }
+.tl-c{ flex:1; }
+.tl-c b{ font-weight:600; }
+
+/* drawer */
+.drawer-mask{ position:absolute; inset:0; background: rgba(4,12,26,.34); opacity:0; pointer-events:none; transition:.22s; z-index: 12; }
+.drawer-mask.on{ opacity:1; pointer-events:auto; }
+.drawer{
+  position:absolute; top:0; right:0; bottom:0; width: min(430px, 92%); background:#fff; z-index:13;
+  transform: translateX(102%); transition: transform .26s cubic-bezier(.4,0,.2,1);
+  display:flex; flex-direction:column; box-shadow: -18px 0 40px -22px rgba(0,0,0,.4);
+}
+.drawer.on{ transform: translateX(0); }
+.dw-head{ padding: 13px 16px; border-bottom:1px solid var(--a-line); display:flex; align-items:center; gap:8px; }
+.dw-head .no{ font-family:var(--mono); font-size:13px; font-weight:700; }
+.dw-head .spacer{ flex:1; }
+.dw-body{ padding: 12px 16px; overflow:auto; flex:1; }
+.dw-sec{ font-size:11px; letter-spacing:.08em; color:var(--a-muted); text-transform:uppercase; margin: 12px 0 6px; }
+.kv{ display:grid; grid-template-columns: 78px 1fr; gap: 5px 8px; font-size:12.3px; }
+.kv dt{ color: var(--a-muted); }
+.kv dd{ margin:0; word-break: break-word; }
+.dw-foot{ padding: 10px 16px; border-top:1px solid var(--a-line); display:flex; gap:7px; flex-wrap:wrap; }
+.dw-note{ font-size:11.5px; color:var(--a-muted); background:#fafcff; border:1px solid var(--a-line); border-radius:4px; padding:7px 9px; margin-top:10px; }
+.demo-banner{ display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--a-ink);
+  background:#fff8e6; border:1px solid #f0dfae; border-radius:4px; padding:6px 10px; margin:0 0 10px; line-height:1.5; }
+.demo-banner b{ color:#9a6a00; font-weight:600; flex:none; }
+.demo-banner span{ color:var(--a-muted); }
+
+/* toast */
+.toast-wrap{ position:absolute; bottom: 12px; left: 206px; z-index: 20;
+  display:flex; flex-direction:column; gap:8px; align-items:flex-start; pointer-events:none; }
+.toast{
+  background:#fff; border-left:3px solid var(--a-ok); color: var(--a-ink);
+  box-shadow: 0 8px 24px -10px rgba(10,30,60,.35); border-radius:4px;
+  padding: 8px 14px; font-size:12.5px; max-width: 420px;
+  animation: toastIn .22s ease-out;
+}
+.toast.err{ border-left-color:#cf1322 }
+.toast.warn{ border-left-color:#faad14 }
+@keyframes toastIn{ from{ opacity:0; transform: translateY(-6px) } to{ opacity:1; transform:none } }
+
+/* demo helper bar */
+.demo-note{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  margin-top: 12px; font-size: 12.5px; color: var(--dim);
+}
+.demo-note .spacer{ flex:1 }
+
+/* features */
+.feats{ display:grid; grid-template-columns: repeat(3,1fr); gap:14px; }
+.feat h3{ font-size:15.5px; margin: 12px 0 7px; }
+.feat p{ font-size:13.5px; color: var(--muted); margin:0; }
+.feat .fi{ width:30px; height:30px; border-radius:9px; display:grid; place-items:center;
+  background: rgba(34,211,238,.10); border:1px solid rgba(34,211,238,.22); color: var(--cyan); }
+.feat .fi svg{ width:15px; height:15px; }
+
+/* arch */
+.arch{ display:grid; grid-template-columns: repeat(4, 1fr); gap: 12px; align-items:stretch; }
+.node{
+  background: var(--panel); border:1px solid var(--line); border-radius: 12px; padding: 16px;
+  position: relative;
+}
+.node .step{ font-family:var(--mono); font-size:10.5px; color:var(--cyan); letter-spacing:.12em; }
+.node h4{ margin: 6px 0 4px; font-size:14.5px; }
+.node p{ margin:0; font-size: 12.5px; color: var(--muted); }
+.node::after{
+  content:"→"; position:absolute; right:-14px; top:50%; transform:translateY(-50%);
+  color: var(--dim); font-size: 14px;
+}
+.node:last-child::after{ content:""; }
+
+/* deploy tabs */
+.tabs{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom: 12px; }
+.tab{
+  padding: 7px 13px; border-radius: 999px; font-size: 13px; cursor:pointer;
+  border:1px solid var(--line); color: var(--muted); background: transparent; transition:.18s;
+  font-family: inherit;
+}
+.tab.on{ color: var(--text); border-color: var(--line-2); background: var(--panel-2); }
+.tabpanel{ display:none }
+.tabpanel.on{ display:block }
+.code-block{ border:1px solid var(--line); border-radius: 12px; overflow:hidden; background: #070b14; }
+html[data-theme="light"] .code-block{ background:#0d1726; }
+.code-head{ display:flex; align-items:center; gap:8px; padding: 8px 12px;
+  border-bottom:1px solid rgba(255,255,255,.08); font-family:var(--mono); font-size:11.5px; color:#8ea2c0; }
+.code-head .spacer{ flex:1 }
+.copy{ background: transparent; border:1px solid rgba(255,255,255,.15); color:#9fb3d1;
+  border-radius:6px; font-size:11px; padding:2px 8px; cursor:pointer; font-family:var(--mono); }
+.copy:hover{ color:#fff; border-color: rgba(255,255,255,.4) }
+.code-block pre{ margin:0; padding: 14px 16px; overflow:auto; font-size:12.4px; line-height:1.8; color:#d6e4f7; }
+.code-block .c{ color:#6f86a6 } .code-block .k{ color:#7dd3fc } .code-block .s{ color:#a7f3d0 }
+
+/* structure */
+.structure{ display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.tree{ font-family: var(--mono); font-size: 12.3px; line-height:1.9; color: var(--muted); white-space: pre;
+  background: var(--panel); border:1px solid var(--line); border-radius:12px; padding: 16px; overflow:auto; }
+.tree b{ color: var(--text); font-weight:600 }
+
+/* limits */
+.limits{ display:grid; grid-template-columns: repeat(2,1fr); gap:12px; }
+.limit{ display:flex; gap:10px; }
+.limit .li{ color: var(--amber); flex:0 0 auto; margin-top:3px; }
+.limit h4{ margin:0 0 3px; font-size:14px; }
+.limit p{ margin:0; font-size:13px; color:var(--muted); }
+
+/* footer */
+footer{ border-top:1px solid var(--line); padding: 30px 0 44px; margin-top: 30px; }
+.foot{ display:flex; gap:16px; align-items:center; flex-wrap:wrap; color: var(--dim); font-size: 12.8px; }
+.foot .spacer{ flex:1 }
+.foot a{ color: var(--muted); text-decoration:none }
+.foot a:hover{ color: var(--cyan) }
+
+/* reveal */
+.reveal{ opacity:0; transform: translateY(14px); transition: opacity .5s ease, transform .5s ease; transition-delay: var(--d,0s); }
+.reveal.in{ opacity:1; transform:none; }
+@media (prefers-reduced-motion: reduce){
+  .reveal{ opacity:1; transform:none; transition:none }
+  html{ scroll-behavior:auto }
+  .pill .dot{ animation:none }
+}
+
+/* responsive */
+@media (max-width: 1000px){
+  .app{ grid-template-columns: 60px 1fr; height: 640px; }
+  .rail a{ justify-content:center; padding: 11px 0; font-size:0; }
+  .rail a i{ width:16px; height:16px; }
+  .rail .r-brand{ justify-content:center; padding: 0 0 14px; font-size:0; }
+  .rail .r-brand span.ico{ width:24px; height:24px; }
+  .r-user{ justify-content:center; padding: 8px 0; font-size:0; }
+  .rail .r-foot{ display:none; }
+  .chart-grid, .chart-grid.two{ grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 860px){
+  .nav-links{ display:none; }
+  .pains, .feats, .arch, .structure, .limits{ grid-template-columns: 1fr; }
+  .arch .node::after{ content:"↓"; right:auto; left:50%; top:auto; bottom:-17px; transform:translateX(-50%); }
+  .stats{ grid-template-columns: 1fr 1fr; }
+  .stat:nth-child(3){ border-left:none; padding-left:0 }
+  .stat{ border-top:1px solid var(--line) }
+  .stat:nth-child(1),.stat:nth-child(2){ border-top:none }
+  .app{ grid-template-columns: 1fr; height: 620px; }
+  .rail{ flex-direction: row; padding:6px 8px; overflow-x:auto; align-items:center; }
+  .rail .r-brand{ display:none }
+  .rail a{ border-left:none; border-bottom:2px solid transparent; padding: 8px 10px; font-size:11px; white-space:nowrap; }
+  .rail a.active{ border-left:none; border-bottom-color:#40a9ff }
+  .rail a i, .rail a svg{ display:none }
+  .rail .r-user, .rail .r-foot{ display:none }
+  .main-a{ min-height:0 }
+  .stat-row, .stat-row.six{ grid-template-columns: repeat(3,1fr); }
+  .form-grid, .imp-grid{ grid-template-columns: 1fr; }
+  .chart-grid, .chart-grid.two{ grid-template-columns: 1fr; }
+  .table-scroll{ overflow-x:auto; }
+  .a-table{ min-width: 620px; }
+  .tl-t{ width: 92px; flex: 0 0 92px; font-size:10.5px; }
+  .toast-wrap{ left: 12px; right: 12px; align-items:stretch; }
+  .toast{ max-width:none; }
+  .demo-note{ font-size:12px }
+}
+@media (max-width: 560px){
+  .hero{ padding: 48px 0 34px }
+  section{ padding: 54px 0 }
+  .url{ display:none }
+  .stat-row, .stat-row.six{ grid-template-columns: 1fr 1fr; }
+  .drawer{ width: 100% }
+}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#04121a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg>
+      </span>
+      售后工单管理系统
+    </a>
+    <nav class="nav-links" aria-label="页面导航">
+      <a href="#why">为什么换掉 Excel</a>
+      <a href="#demo">在线演示</a>
+      <a href="#features">功能</a>
+      <a href="#arch">实现</a>
+      <a href="#deploy">部署</a>
+      <a href="#publish">发布</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="icon-btn" id="themeBtn" aria-label="切换主题" title="切换主题">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+      </button>
+      <a class="btn" href="https://github.com/Jackon-Li/workorder-system" target="_blank" rel="noopener">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.9 1.2 1.9 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.6 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .5Z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+  <!-- HERO -->
+  <div class="wrap hero">
+    <span class="pill reveal"><span class="dot"></span> v1.0.0 · 首个公开发布 · 2026-10-18</span>
+    <h1 class="title reveal" style="--d:.05s">把工单<br><span class="grad">从 Excel 里捞出来</span></h1>
+    <p class="lede reveal" style="--d:.1s">
+      10 人以内的小组用 Excel 记工单，最怕三件事：<strong>文件丢了</strong>、<strong>版本乱了</strong>、<strong>改动没人认</strong>。
+      这套系统把工单收进一台内网服务器——统一编号、四态流转、全程留痕，<strong>断网也能跑</strong>。
+    </p>
+    <div class="cta-row reveal" style="--d:.15s">
+      <a class="btn btn-primary" href="#demo">
+        直接上手点
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+      </a>
+      <a class="btn" href="#deploy">看怎么部署</a>
+      <span class="hint">python3 install.py && python3 app.py</span>
+    </div>
+    <div class="stats reveal" style="--d:.2s">
+      <div class="stat"><b>16 / 129</b><span>地州 / 区县联动</span><small>REGIONS</small></div>
+      <div class="stat"><b>4</b><span>态状态流转</span><small>WORKFLOW</small></div>
+      <div class="stat"><b>0</b><span>公网依赖</span><small>OFFLINE</small></div>
+      <div class="stat"><b>50/50</b><span>并发建单实测</span><small>CONCURRENCY</small></div>
+    </div>
+  </div>
+
+  <!-- WHY -->
+  <section id="why">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="reveal">
+          <div class="kicker">Why not Excel</div>
+          <h2 class="h2">Excel 不是不能记，<br>是记不住“谁在什么时候改了什么”</h2>
+          <p class="sub">问题从来不是表格不够用，而是表格只是文件，不是系统。</p>
+        </div>
+      </div>
+      <div class="pains">
+        <article class="card pain reveal">
+          <span class="tag">PAIN 01</span>
+          <h3>台账会丢</h3>
+          <p>文件躺在某台电脑的桌面上，覆盖保存一次、重装一次系统、换一个人接手，历史就断了。</p>
+          <div class="fix">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg>
+            <span>数据只在服务端 <b>db/workorder.db</b> 一份，浏览器访问，备份就是拷一个文件。</span>
+          </div>
+        </article>
+        <article class="card pain reveal" style="--d:.06s">
+          <span class="tag">PAIN 02</span>
+          <h3>多人同步靠发文件</h3>
+          <p>同一条工单两个人改，回头比对两份 Excel，谁的是对的说不清；合并还得手工来。</p>
+          <div class="fix">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg>
+            <span>在线多人录入，SQLite 开 <b>WAL</b>，编号由服务端统一发，不会撞号。</span>
+          </div>
+        </article>
+        <article class="card pain reveal" style="--d:.12s">
+          <span class="tag">PAIN 03</span>
+          <h3>改动没人认</h3>
+          <p>“这单什么时候完成的？”“谁把状态改成已关闭的？”Excel 里翻不到答案。</p>
+          <div class="fix">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg>
+            <span>创建、流转、导入、删除都写日志；<b>工单删了，日志还在</b>。</span>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEMO -->
+  <section id="demo">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="reveal">
+          <div class="kicker">Live demo</div>
+          <h2 class="h2">不用装，先点两下</h2>
+          <p class="sub">下面是按真实界面重写的前端演示：可以筛选、搜索、翻页、点开工单流转状态、新建工单、看数据大屏、模拟导入。数据只在浏览器内存里，刷新即还原。<b>演示数据全部虚构：单位以"某"代替，姓名用张三/李四等测试名，电话一律为 138****0001 这类掩码占位，不对应任何真实人员。</b></p>
+        </div>
+      </div>
+
+      <div class="demo-wrap reveal">
+        <div class="browser">
+          <div class="chrome">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <div class="url">http://192.168.1.20:8000/tickets</div>
+            <span class="badge-static">STATIC DEMO</span>
+          </div>
+
+          <div class="app" id="app">
+            <aside class="rail">
+              <div class="r-brand"><span class="ico">SG</span> 售后工单系统</div>
+              <a data-pane="list" class="active" role="button" tabindex="0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>工单列表
+              </a>
+              <a data-pane="create" role="button" tabindex="0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>新建工单
+              </a>
+              <a data-pane="dash" role="button" tabindex="0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>数据大屏
+              </a>
+              <a data-pane="import" role="button" tabindex="0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>批量导入
+              </a>
+              <a data-pane="log" role="button" tabindex="0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>操作日志
+              </a>
+              <a data-pane="users" role="button" tabindex="0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3.2"/><path d="M22 20v-2a4 4 0 0 0-3-3.8"/></svg>用户管理
+              </a>
+              <div class="r-foot">v1.0.0 · 内网部署</div>
+            </aside>
+
+            <div class="main-a">
+              <div class="topbar">
+                <div class="crumb">首页 / <b id="crumb">工单列表</b></div>
+                <div class="spacer"></div>
+                <div class="who">
+                  <span class="av" style="width:20px;height:20px;border-radius:50%;background:#e6f7ff;color:#1890ff;display:grid;place-items:center;font-size:10px">管</span>
+                  管理员 <span class="tag-admin">管理员</span>
+                </div>
+              </div>
+
+              <!-- 列表 -->
+              <div class="pane on" data-pane="list">
+                <div class="demo-banner"><b>演示数据</b><span>人员、单位、电话均为虚构或脱敏（张三 / 138****0001 / 某州教育局），不对应任何真实客户；如与实际情况雷同，纯属巧合。</span></div>
+                <div class="stat-row" id="listStats"></div>
+
+                <div class="a-card toolbar">
+                  <select class="a-select" id="fStatus" aria-label="状态筛选">
+                    <option value="">全部状态</option><option>待处理</option><option>处理中</option><option>已完成</option><option>已关闭</option>
+                  </select>
+                  <select class="a-select" id="fCity" aria-label="州市筛选"></select>
+                  <select class="a-select" id="fPriority" aria-label="优先级筛选">
+                    <option value="">全部优先级</option><option>低</option><option>中</option><option>高</option><option>紧急</option>
+                  </select>
+                  <input class="a-input" id="fSearch" placeholder="搜索编号 / 单位 / 联系人" style="width:158px" aria-label="搜索">
+                  <button class="a-btn" id="btnSearch">搜索</button>
+                  <button class="a-btn ghost" id="btnReset">重置</button>
+                  <div class="grow"></div>
+                  <button class="a-btn" id="btnExport">导出 CSV</button>
+                  <button class="a-btn primary" data-goto="create">+ 新建工单</button>
+                </div>
+
+                <div class="a-card">
+                  <div class="table-scroll">
+                    <table class="a-table">
+                      <thead>
+                        <tr>
+                          <th style="width:34px"><input type="checkbox" id="chkAll" aria-label="全选"></th>
+                          <th>工单编号</th><th>接收日期</th><th>用户单位</th><th>联系人 / 电话</th>
+                          <th>州市</th><th>优先级</th><th>状态</th><th style="width:74px">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody id="tbody"></tbody>
+                    </table>
+                  </div>
+                  <div class="pager">
+                    <span id="pgInfo">—</span>
+                    <div class="spacer"></div>
+                    <button class="pg" id="pgPrev">上一页</button>
+                    <span id="pgNums" style="display:flex;gap:4px"></span>
+                    <button class="pg" id="pgNext">下一页</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 新建 -->
+              <div class="pane" data-pane="create">
+                <div class="pane-head"><h4>新建工单</h4><div class="spacer"></div>
+                  <span class="mono-s" style="color:var(--a-muted)">编号自动生成：SG + 日期 + 4 位序号</span>
+                </div>
+                <div class="form-card">
+                  <div class="form-grid">
+                    <div><label class="a-label" for="cDate">接收日期 <em>*</em></label><input class="a-input" type="date" id="cDate" style="width:100%"></div>
+                    <div><label class="a-label" for="cReceiver">接收人</label><input class="a-input" id="cReceiver" placeholder="如：李四" style="width:100%"></div>
+                    <div><label class="a-label" for="cCity">州市 <em>*</em></label><select class="a-select" id="cCity" style="width:100%"></select></div>
+                    <div><label class="a-label" for="cCounty">区县</label><select class="a-select" id="cCounty" style="width:100%"></select></div>
+                    <div><label class="a-label" for="cUnit">用户单位 <em>*</em></label><input class="a-input" id="cUnit" placeholder="如：某某单位" style="width:100%"></div>
+                    <div><label class="a-label" for="cContact">联系人 <em>*</em></label><input class="a-input" id="cContact" placeholder="姓名" style="width:100%"></div>
+                    <div><label class="a-label" for="cPhone">联系电话 <em>*</em></label><input class="a-input" id="cPhone" placeholder="11 位手机号" style="width:100%"></div>
+                    <div><label class="a-label" for="cFault">故障类型</label><select class="a-select" id="cFault" style="width:100%"></select></div>
+                    <div><label class="a-label" for="cPriority">优先级</label><select class="a-select" id="cPriority" style="width:100%">
+                      <option>低</option><option selected>中</option><option>高</option><option>紧急</option></select></div>
+                    <div><label class="a-label" for="cOnsite">是否需要上门</label><select class="a-select" id="cOnsite" style="width:100%">
+                      <option value="否">否</option><option value="是">是</option></select></div>
+                    <div><label class="a-label" for="cOnsitePerson">上门人员</label><input class="a-input" id="cOnsitePerson" placeholder="选填" style="width:100%"></div>
+                    <div><label class="a-label" for="cOnsiteDate">上门日期</label><input class="a-input" type="date" id="cOnsiteDate" style="width:100%"></div>
+                    <div class="full"><label class="a-label" for="cProblem">问题现象 <em>*</em></label><textarea class="a-area" id="cProblem" rows="2" placeholder="设备 / 系统出什么现象，什么时候开始的"></textarea></div>
+                    <div class="full"><label class="a-label" for="cSolution">处理详情</label><textarea class="a-area" id="cSolution" rows="2" placeholder="可以先留空，完成工单时再补"></textarea></div>
+                    <div class="full"><label class="a-label" for="cSn">产品序列号</label><input class="a-input" id="cSn" placeholder="选填" style="width:100%"></div>
+                  </div>
+                  <div class="form-foot">
+                    <span class="form-tip">带 <em style="color:#cf1322;font-style:normal">*</em> 为必填；提交后编号自动分配</span>
+                    <button class="a-btn" data-goto="list">取消</button>
+                    <button class="a-btn primary" id="btnCreate">提交工单</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 大屏 -->
+              <div class="pane" data-pane="dash">
+                <div class="pane-head"><h4>数据大屏</h4><div class="spacer"></div>
+                  <select class="a-select" id="dCity" aria-label="大屏州市筛选"></select>
+                  <button class="a-btn" id="btnDash">刷新</button>
+                </div>
+                <div class="stat-row six" id="dashStats"></div>
+                <div class="chart-grid">
+                  <div class="chart-card">
+                    <h5>月度工单趋势</h5><div class="cap">柱：新增工单 · 线：已完成</div>
+                    <div id="chTrend"></div>
+                  </div>
+                  <div class="chart-card">
+                    <h5>工单状态分布</h5><div class="cap">四态占比</div>
+                    <div id="chStatus"></div>
+                  </div>
+                </div>
+                <div class="chart-grid two">
+                  <div class="chart-card">
+                    <h5>故障类型占比</h5><div class="cap">按工单数排序</div>
+                    <div id="chFault"></div>
+                  </div>
+                  <div class="chart-card">
+                    <h5>地州工单分布</h5><div class="cap">Top 8</div>
+                    <div id="chCity"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 导入 -->
+              <div class="pane" data-pane="import">
+                <div class="pane-head"><h4>批量导入</h4><div class="spacer"></div>
+                  <button class="a-btn" id="btnTpl">下载 CSV 模板</button>
+                </div>
+                <div class="imp-grid">
+                  <div class="form-card">
+                    <div class="drop" id="dropZone">
+                      <b>拖入 CSV 文件</b>，或点击选择<br>
+                      <span style="font-size:11.5px">支持 UTF-8 / GBK（Excel 另存即可）</span>
+                      <input type="file" id="fileInput" accept=".csv,text/csv" style="display:none">
+                    </div>
+                    <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+                      <button class="a-btn sm" id="btnSample">载入示例数据</button>
+                      <button class="a-btn sm" id="btnParse">解析预览</button>
+                      <span class="mono-s" id="impState" style="color:var(--a-muted)"></span>
+                    </div>
+                    <pre class="csv" id="csvBox" aria-label="CSV 内容"></pre>
+                  </div>
+                  <div class="form-card">
+                    <div style="font-size:12.5px;font-weight:600;margin-bottom:6px">解析结果</div>
+                    <div id="impPreview" style="font-size:12.3px;color:var(--a-muted)">尚未解析。左侧贴入 CSV 或选择文件后点「解析预览」。</div>
+                    <div class="imp-log" id="impLog"></div>
+                    <div style="margin-top:12px;text-align:right">
+                      <button class="a-btn primary" id="btnImport" disabled>确认导入</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="dw-note">示例数据仅用于演示：导入会在浏览器内存里新增工单，刷新页面即还原。真实系统会对每行做必填校验，编号重复时明确报错。</div>
+              </div>
+
+              <!-- 日志 -->
+              <div class="pane" data-pane="log">
+                <div class="pane-head"><h4>操作日志</h4><div class="spacer"></div>
+                  <select class="a-select" id="logFilter" aria-label="动作筛选">
+                    <option value="">全部动作</option><option value="create">创建</option><option value="start">开始处理</option>
+                    <option value="complete">完成</option><option value="close">关闭</option><option value="delete">删除</option><option value="import">导入</option>
+                  </select>
+                </div>
+                <div class="a-card" style="padding:4px 14px">
+                  <div class="timeline" id="logList"></div>
+                </div>
+              </div>
+
+              <!-- 用户 -->
+              <div class="pane" data-pane="users">
+                <div class="pane-head"><h4>用户管理</h4><div class="spacer"></div>
+                  <button class="a-btn primary" id="btnUser">+ 新建用户</button>
+                </div>
+                <div class="a-card">
+                  <div class="table-scroll">
+                    <table class="a-table">
+                      <thead><tr><th>用户名</th><th>显示名称</th><th>角色</th><th>状态</th><th>创建时间</th><th style="width:110px">操作</th></tr></thead>
+                      <tbody>
+                        <tr><td class="mono-s">admin</td><td>系统管理员</td><td><span class="bdg b-urgent">管理员</span></td><td><span class="bdg s-completed">启用</span></td><td class="mono-s">2026-05-06</td><td><button class="a-btn sm">重置密码</button></td></tr>
+                        <tr><td class="mono-s">zhangsan</td><td>张三</td><td><span class="bdg s-pending">普通用户</span></td><td><span class="bdg s-completed">启用</span></td><td class="mono-s">2026-06-11</td><td><button class="a-btn sm">重置密码</button></td></tr>
+                        <tr><td class="mono-s">lisi</td><td>李四</td><td><span class="bdg s-pending">普通用户</span></td><td><span class="bdg s-closed">停用</span></td><td class="mono-s">2026-07-02</td><td><button class="a-btn sm">重置密码</button></td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div class="dw-note">管理员可新建用户、重置密码、启停用；普通用户看不到本页。密码为无盐 SHA-256，仅适合内网可信环境。</div>
+              </div>
+            </div>
+
+            <!-- drawer -->
+            <div class="drawer-mask" id="mask"></div>
+            <div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="工单详情">
+              <div class="dw-head">
+                <span class="no" id="dwNo">SG—</span>
+                <span id="dwStatus"></span>
+                <div class="spacer"></div>
+                <button class="a-btn sm" id="dwClose" aria-label="关闭">✕</button>
+              </div>
+              <div class="dw-body" id="dwBody"></div>
+              <div class="dw-foot" id="dwFoot"></div>
+            </div>
+
+            <div class="toast-wrap" id="toasts" aria-live="polite"></div>
+          </div>
+        </div>
+
+        <div class="demo-note">
+          <span>演示数据：68 张工单，跨 6 个月，覆盖 16 个州市（人员、单位、电话均已虚构或脱敏）</span>
+          <div class="spacer"></div>
+          <button class="a-btn sm" id="btnResetData" style="border-color:var(--line);background:transparent;color:var(--muted)">重置演示数据</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="reveal">
+          <div class="kicker">Features</div>
+          <h2 class="h2">该有的都有，不该有的不硬塞</h2>
+          <p class="sub">目标是把 10 个人的日常跑顺，不是把功能列表堆长。</p>
+        </div>
+      </div>
+      <div class="feats">
+        <article class="card feat reveal">
+          <div class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h5l2 5 4-10 2 5h3"/></svg></div>
+          <h3>四态闭环</h3>
+          <p>待处理 → 处理中 → 已完成 → 已关闭。每次流转记操作人和时间，详情页有完整时间线。</p>
+        </article>
+        <article class="card feat reveal" style="--d:.04s">
+          <div class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 6-9 12-9 12S3 16 3 10a9 9 0 0 1 18 0Z"/><circle cx="12" cy="10" r="3"/></svg></div>
+          <h3>云南区域联动</h3>
+          <p>16 个地州、129 个区县，选州市自动收窄区县，避免把“五华区”填到曲靖去。</p>
+        </article>
+        <article class="card feat reveal" style="--d:.08s">
+          <div class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></div>
+          <h3>Excel 直接导入</h3>
+          <p>另存为 CSV 就能导，UTF-8 / GBK / GB18030 自动识别；缺字段按行号提示，不静默吞错。</p>
+        </article>
+        <article class="card feat reveal" style="--d:.12s">
+          <div class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18M6 8h12M10 12h4M8 4v16m8-16v16"/></svg></div>
+          <h3>筛选即导出</h3>
+          <p>按状态、州市、优先级筛完直接导 CSV，导出的就是眼前这一屏，不会多也不会少。</p>
+        </article>
+        <article class="card feat reveal" style="--d:.16s">
+          <div class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+          <h3>数据大屏</h3>
+          <p>趋势、状态、故障类型、地州分布四张图，ECharts 本地加载，断网照常出图。</p>
+        </article>
+        <article class="card feat reveal" style="--d:.2s">
+          <div class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7Z"/><path d="M9 12l2 2 4-4"/></svg></div>
+          <h3>纯离线可跑</h3>
+          <p>前端四个库全在 static/lib，Python 依赖 14 个 aarch64 轮子随包走，不联网也能装。</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ARCH -->
+  <section id="arch">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="reveal">
+          <div class="kicker">How it works</div>
+          <h2 class="h2">一个进程、一个文件、四张表</h2>
+          <p class="sub">没有微服务、没有消息队列、没有前端构建。请求进来到落盘，只经过四步。</p>
+        </div>
+      </div>
+      <div class="arch">
+        <div class="node reveal">
+          <div class="step">01 / BROWSER</div>
+          <h4>浏览器</h4>
+          <p>Jinja2 服务端渲染的页面，静态资源由 Flask 从 <code>static/</code> 直接发出。</p>
+        </div>
+        <div class="node reveal" style="--d:.06s">
+          <div class="step">02 / FLASK</div>
+          <h4>路由与鉴权</h4>
+          <p><code>app.py</code> 单文件 26 条路由，session 判登录，管理员额外判 <code>is_admin</code>。</p>
+        </div>
+        <div class="node reveal" style="--d:.12s">
+          <div class="step">03 / ORM</div>
+          <h4>SQLAlchemy</h4>
+          <p>4 张表：工单、操作日志、用户、故障类型。无迁移框架，建表即用。</p>
+        </div>
+        <div class="node reveal" style="--d:.18s">
+          <div class="step">04 / SQLITE</div>
+          <h4>单文件落盘</h4>
+          <p>WAL 模式 + 20s 忙等待，读写不互锁；备份就是拷贝 <code>workorder.db</code>。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEPLOY -->
+  <section id="deploy">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="reveal">
+          <div class="kicker">Deploy</div>
+          <h2 class="h2">装它大概需要十分钟</h2>
+          <p class="sub">离线机上把目录拷过去，跑一个脚本；有网机器上则是三条命令。</p>
+        </div>
+      </div>
+
+      <div class="tabs reveal" role="tablist">
+        <button class="tab on" data-tab="t1" role="tab">一键离线安装</button>
+        <button class="tab" data-tab="t2" role="tab">本地跑起来</button>
+        <button class="tab" data-tab="t3" role="tab">备份与升级</button>
+      </div>
+
+      <div class="tabpanel on reveal" id="t1">
+        <div class="code-block">
+          <div class="code-head"><span>麒麟 V10 / ARM64 · 离线</span><span class="spacer"></span><button class="copy" data-copy="c1">复制</button></div>
+          <pre id="c1"><span class="c"># 1) 把整个目录拷到服务器</span>
+scp -r workorder-system/ user@server:/opt/ticket_system
+
+<span class="c"># 2) 一键安装：建虚拟环境 / 离线装 14 个轮子 / 建库 / 装 systemd</span>
+cd /opt/ticket_system
+sudo bash scripts/install.sh
+
+<span class="c"># 3) 访问</span>
+<span class="k">http://服务器IP:8000</span>     <span class="c"># admin / admin123（登录后请改）</span></pre>
+        </div>
+      </div>
+
+      <div class="tabpanel reveal" id="t2">
+        <div class="code-block">
+          <div class="code-head"><span>Windows / macOS / Linux · 有网</span><span class="spacer"></span><button class="copy" data-copy="c2">复制</button></div>
+          <pre id="c2">git clone https://github.com/Jackon-Li/workorder-system.git
+cd workorder-system
+
+python3 -m venv .venv
+source .venv/bin/activate        <span class="c"># Windows: .venv\Scripts\activate</span>
+pip install -r requirements.txt
+
+python3 install.py               <span class="c"># 建库 + 初始化管理员</span>
+python3 app.py                   <span class="c"># http://localhost:8000</span></pre>
+        </div>
+      </div>
+
+      <div class="tabpanel reveal" id="t3">
+        <div class="code-block">
+          <div class="code-head"><span>运维</span><span class="spacer"></span><button class="copy" data-copy="c3">复制</button></div>
+          <pre id="c3"><span class="c"># 备份：WAL 模式下必须连 -wal / -shm 一起拷，或先停服务</span>
+sudo systemctl stop ticket-system
+cp db/workorder.db* /backup/$(date +%Y%m%d)/
+sudo systemctl start ticket-system
+
+<span class="c"># 升级：覆盖程序文件即可，数据库结构未变，无需迁移</span>
+sudo systemctl restart ticket-system
+sudo journalctl -u ticket-system -f</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PUBLISH -->
+  <section id="publish">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="reveal">
+          <div class="kicker">Publish &amp; preview</div>
+          <h2 class="h2">这个预览页是怎么发上去的</h2>
+          <p class="sub">GitHub Pages 只能托管静态文件，所以预览页是独立的一份前端演示（<code>docs/index.html</code>），与 Flask 应用分开部署。</p>
+        </div>
+      </div>
+
+      <div class="pains" style="grid-template-columns:repeat(3,1fr)">
+        <article class="card pain reveal">
+          <span class="tag" style="color:var(--cyan)">STEP 01</span>
+          <h3>代码推到 main</h3>
+          <p>仓库里 <code>docs/</code> 放演示页，另加一个空文件 <code>docs/.nojekyll</code>，告诉 Pages 不要用 Jekyll 处理。</p>
+        </article>
+        <article class="card pain reveal" style="--d:.06s">
+          <span class="tag" style="color:var(--cyan)">STEP 02</span>
+          <h3>Actions 自动构建</h3>
+          <p>workflow 用 <code>configure-pages</code>（<code>enablement: true</code> 首次自动建站）+ <code>upload-pages-artifact</code> 上传 <code>docs</code>。</p>
+        </article>
+        <article class="card pain reveal" style="--d:.12s">
+          <span class="tag" style="color:var(--cyan)">STEP 03</span>
+          <h3>Pages 部署</h3>
+          <p><code>deploy-pages</code> 发布到 <code>https://&lt;用户名&gt;.github.io/&lt;仓库名&gt;/</code>，之后每次改 <code>docs/</code> 都会自动更新。</p>
+        </article>
+      </div>
+
+      <div class="code-block reveal" style="margin-top:14px">
+        <div class="code-head"><span>.github/workflows/pages.yml</span><span class="spacer"></span><button class="copy" data-copy="c4">复制</button></div>
+        <pre id="c4">name: Deploy GitHub Pages
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+        with: { enablement: true }
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: docs }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages }
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment</pre>
+      </div>
+      <p class="sub reveal" style="margin-top:12px">
+        也可以在 <b>Settings → Pages → Source</b> 里直接选 “Deploy from a branch” + <code>/docs</code>，效果一样；用 Actions 的好处是构建日志与失败原因可见。
+      </p>
+    </div>
+  </section>
+
+  <!-- STRUCTURE -->
+  <section id="structure">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="reveal">
+          <div class="kicker">Repository</div>
+          <h2 class="h2">仓库长什么样</h2>
+        </div>
+      </div>
+      <div class="structure">
+        <div class="tree reveal">
+<b>workorder-system/</b>
+├── app.py               <span style="opacity:.55">路由与业务逻辑</span>
+├── models.py            <span style="opacity:.55">4 张表 + 建库</span>
+├── config.py            <span style="opacity:.55">HOST / PORT / 分页</span>
+├── yunnan_regions.py    <span style="opacity:.55">16 州 129 县</span>
+├── install.py           <span style="opacity:.55">初始化入口</span>
+├── requirements.txt     <span style="opacity:.55">锁版本</span>
+├── packages/            <span style="opacity:.55">14 个离线轮子</span>
+├── templates/           <span style="opacity:.55">10 个页面模板</span>
+├── static/lib/          <span style="opacity:.55">bootstrap / jquery / echarts</span>
+└── scripts/install.sh   <span style="opacity:.55">离线安装</span>
+        </div>
+        <div class="tree reveal" style="--d:.06s">
+<b>docs/</b>
+├── index.html           <span style="opacity:.55">你正在看的这一页</span>
+└── .nojekyll            <span style="opacity:.55">跳过 Jekyll</span>
+
+<b>.github/workflows/pages.yml</b>   <span style="opacity:.55">自动部署</span>
+<b>部署说明书.md</b>                 <span style="opacity:.55">麒麟 V10 全流程</span>
+<b>CHANGELOG.md</b>                  <span style="opacity:.55">版本记录</span>
+<b>LICENSE</b>                       <span style="opacity:.55">MIT</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIMITS -->
+  <section id="limits">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="reveal">
+          <div class="kicker">Boundaries</div>
+          <h2 class="h2">先说清楚它不适合干什么</h2>
+        </div>
+      </div>
+      <div class="limits">
+        <div class="limit reveal">
+          <span class="li">▲</span>
+          <div><h4>并发上限在 10 人量级</h4><p>SQLite + 单进程，实测 10 线程 × 5 单全部成功；再多建议换 PostgreSQL 并前置 gunicorn。</p></div>
+        </div>
+        <div class="limit reveal" style="--d:.05s">
+          <span class="li">▲</span>
+          <div><h4>不要直接暴露到公网</h4><p>无盐 SHA-256、硬编码 SECRET_KEY、无 CSRF、默认口令。内网可信环境可用，等保场景需加固。</p></div>
+        </div>
+        <div class="limit reveal" style="--d:.1s">
+          <span class="li">▲</span>
+          <div><h4>这一页是静态演示</h4><p>Pages 不能跑 Python，所以页面里的数据是前端模拟；真实系统请按部署步骤启动。演示中的人员、单位、电话均为虚构或脱敏，不代表任何真实客户。</p></div>
+        </div>
+        <div class="limit reveal" style="--d:.15s">
+          <span class="li">▲</span>
+          <div><h4>未在麒麟真机跑端到端</h4><p>依赖已按 py3.8 + aarch64 解析通过，轮子标签匹配；首次上线仍建议做一次 <code>import flask</code> 校验。</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <span>MIT © 2026 Jackon-Li</span>
+    <span>·</span>
+    <a href="https://github.com/Jackon-Li/workorder-system" target="_blank" rel="noopener">GitHub 仓库</a>
+    <a href="https://github.com/Jackon-Li/workorder-system/blob/main/部署说明书.md" target="_blank" rel="noopener">部署说明书</a>
+    <a href="https://github.com/Jackon-Li/workorder-system/blob/main/CHANGELOG.md" target="_blank" rel="noopener">变更记录</a>
+    <a href="https://github.com/Jackon-Li/workorder-system/issues" target="_blank" rel="noopener">问题反馈</a>
+    <div class="spacer"></div>
+    <span class="mono" style="font-size:11.5px">v1.0.1 · Flask 2.3.3 · SQLite WAL · 本页为前端模拟演示，数据已脱敏</span>
+  </div>
+</footer>
+
+<script>
+/* =========================================================
+   云南行政区划（与 yunnan_regions.py 一致）
+   ========================================================= */
+var REGIONS = {
+  "昆明市": ["五华区","盘龙区","官渡区","西山区","东川区","呈贡区","晋宁区","安宁市","富民县","宜良县","嵩明县","石林彝族自治县","禄劝彝族苗族自治县","寻甸回族彝族自治县"],
+  "曲靖市": ["麒麟区","沾益区","马龙区","宣威市","富源县","罗平县","师宗县","陆良县","会泽县"],
+  "玉溪市": ["红塔区","江川区","澄江市","通海县","华宁县","易门县","峨山彝族自治县","新平彝族傣族自治县","元江哈尼族彝族傣族自治县"],
+  "保山市": ["隆阳区","腾冲市","施甸县","龙陵县","昌宁县"],
+  "昭通市": ["昭阳区","水富市","鲁甸县","巧家县","盐津县","大关县","永善县","绥江县","镇雄县","彝良县","威信县"],
+  "丽江市": ["古城区","永胜县","华坪县","玉龙纳西族自治县","宁蒗彝族自治县"],
+  "普洱市": ["思茅区","宁洱哈尼族彝族自治县","墨江哈尼族自治县","景东彝族自治县","景谷傣族彝族自治县","镇沅彝族哈尼族拉祜族自治县","江城哈尼族彝族自治县","孟连傣族拉祜族佤族自治县","澜沧拉祜族自治县","西盟佤族自治县"],
+  "临沧市": ["临翔区","凤庆县","云县","永德县","镇康县","双江拉祜族佤族布朗族傣族自治县","耿马傣族佤族自治县","沧源佤族自治县"],
+  "楚雄彝族自治州": ["楚雄市","禄丰市","双柏县","牟定县","南华县","姚安县","大姚县","永仁县","元谋县","武定县"],
+  "红河哈尼族彝族自治州": ["蒙自市","个旧市","开远市","弥勒市","建水县","石屏县","泸西县","元阳县","红河县","绿春县","屏边苗族自治县","金平苗族瑶族傣族自治县","河口瑶族自治县"],
+  "文山壮族苗族自治州": ["文山市","砚山县","西畴县","麻栗坡县","马关县","丘北县","广南县","富宁县"],
+  "西双版纳傣族自治州": ["景洪市","勐海县","勐腊县"],
+  "大理白族自治州": ["大理市","祥云县","宾川县","弥渡县","永平县","云龙县","洱源县","剑川县","鹤庆县","漾濞彝族自治县","南涧彝族自治县","巍山彝族回族自治县"],
+  "德宏傣族景颇族自治州": ["芒市","瑞丽市","梁河县","盈江县","陇川县"],
+  "怒江傈僳族自治州": ["泸水市","福贡县","贡山独龙族怒族自治县","兰坪白族普米族自治县"],
+  "迪庆藏族自治州": ["香格里拉市","德钦县","维西傈僳族自治县"]
+};
+var CITIES = Object.keys(REGIONS);
+var FAULTS = ["硬件故障","网络故障","软件故障","电源故障","打印外设","其他"];
+/* 演示数据全部为虚构：单位仅保留机构类型（前缀"某"），姓名使用张三/李四等测试用名，
+   电话统一为 138****0001 ~ 138****0068 的掩码格式，不含任何真实可拨通号码。 */
+var UNITS = ["某省第一人民医院","某理工大学","某市政务服务中心","某州税务局","某州人民医院","某市第一中学","某州档案馆","某市交通运输局","某市不动产登记中心","某市疾控中心","某景区管理局","某州中级人民法院","某州医院","某市供电局","某州公安局","某州人社局","某州教育局","某市地铁运营公司"];
+var PEOPLE = ["张三","李四","王五","赵六","孙七","周八","吴九","郑十"];
+var PROBLEMS = [
+  "设备开机后电源指示灯不亮，无法启动",
+  "业务系统登录报错 500，回滚后仍复现",
+  "终端无法读取身份证信息，提示设备离线",
+  "内网访问后台超时，ping 网关正常",
+  "打印机频繁卡纸，出纸口有异响",
+  "数据库连接数占满，页面长时间转圈",
+  "客户端升级后闪退，重装无效",
+  "机房 UPS 告警，电池组温度偏高",
+  "视频会议终端无法入会，提示鉴权失败",
+  "自助终端触摸屏局部失灵"
+];
+var SOLUTIONS = [
+  "更换电源模块，连续运行 4 小时无异常",
+  "定位为缓存配置错误，清理并重启服务",
+  "更换读卡器数据线，重新校准设备",
+  "调整交换机端口 VLAN，链路恢复",
+  "清理进纸滚轮并更换搓纸轮",
+  "调大连接池并优化慢查询，观察一天正常",
+  "回退至上一版本客户端，问题不再复现",
+  "更换电池组，告警消除",
+  "重新绑定会议账号，入会正常",
+  "校准触摸屏并更换排线"
+];
+var OWNERS = ["admin","zhangsan"];
+
+/* =========================================================
+   工具
+   ========================================================= */
+function pad(n, w){ n = String(n); while(n.length < w) n = "0" + n; return n; }
+function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function fmtDate(d){ return d.getFullYear() + "-" + pad(d.getMonth()+1,2) + "-" + pad(d.getDate(),2); }
+function shortCity(c){
+  return String(c).replace(/(傣族景颇族|哈尼族彝族|壮族苗族|彝族|白族|傈僳族|藏族|傣族)自治州$/, "州");
+}
+function esc4(s){ return String(s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+
+/* 确定性随机，保证每次打开数据一致 */
+function rng(seed){
+  var s = seed >>> 0;
+  return function(){ s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+var TODAY = new Date(2026, 9, 18);
+
+/* =========================================================
+   种子数据
+   ========================================================= */
+var STATE = { tickets: [], history: [], page: 1, pageSize: 8, nextId: 1 };
+
+function statusOf(r){
+  if (r < 0.26) return "待处理";
+  if (r < 0.44) return "处理中";
+  if (r < 0.88) return "已完成";
+  return "已关闭";
+}
+
+function seed(){
+  var rand = rng(20261018);
+  var tickets = [];
+  var seqByDay = {};
+  var start = new Date(2026, 4, 1);
+
+  for (var i = 0; i < 68; i++){
+    var offset = Math.floor(rand() * 170);
+    var d = new Date(start.getTime() + offset * 86400000);
+    if (d > TODAY) d = new Date(TODAY.getTime() - Math.floor(rand() * 5) * 86400000);
+    var ds = fmtDate(d);
+    seqByDay[ds] = (seqByDay[ds] || 0) + 1;
+
+    var ci = Math.floor(rand() * CITIES.length);
+    var city = CITIES[ci];
+    var county = REGIONS[city][Math.floor(rand() * REGIONS[city].length)];
+    var st = statusOf(rand());
+    var onsite = rand() < 0.45;
+    var fault = FAULTS[Math.floor(rand() * FAULTS.length)];
+    var pr = rand();
+    var priority = pr < 0.12 ? "紧急" : pr < 0.4 ? "高" : pr < 0.82 ? "中" : "低";
+    var idx = Math.floor(rand() * PROBLEMS.length);
+    var created = new Date(d.getTime() + (8 + Math.floor(rand()*8)) * 3600000);
+
+    tickets.push({
+      id: i + 1,
+      no: "SG" + ds.replace(/-/g, "") + pad(seqByDay[ds], 4),
+      date: ds,
+      receiver: PEOPLE[Math.floor(rand() * PEOPLE.length)],
+      city: city,
+      county: county,
+      unit: UNITS[Math.floor(rand() * UNITS.length)],
+      contact: PEOPLE[Math.floor(rand() * PEOPLE.length)],
+      phone: "138****" + pad(i + 1, 4),   /* 脱敏假号，不生成任何真实号段号码 */
+      problem: PROBLEMS[idx],
+      solution: st === "已完成" || st === "已关闭" ? SOLUTIONS[idx] : "",
+      fault: fault,
+      onsite: onsite,
+      onsitePerson: onsite ? PEOPLE[Math.floor(rand() * PEOPLE.length)] : "",
+      onsiteDate: onsite ? ds : "",
+      sn: rand() < 0.6 ? "SN" + Math.floor(20260000 + rand() * 9999) : "",
+      priority: priority,
+      status: st,
+      owner: OWNERS[Math.floor(rand() * OWNERS.length)],
+      createdAt: created.getFullYear() + "-" + pad(created.getMonth()+1,2) + "-" + pad(created.getDate(),2) + " " + pad(created.getHours(),2) + ":" + pad(created.getMinutes(),2)
+    });
+  }
+  tickets.sort(function(a,b){ return a.no < b.no ? 1 : -1; });
+
+  var history = [];
+  var hid = 1;
+  tickets.forEach(function(t){
+    history.push({ id: hid++, ticketId: t.id, no: t.no, action: "create", operator: t.owner, detail: "创建工单", at: t.createdAt });
+    if (t.status === "处理中" || t.status === "已完成" || t.status === "已关闭") history.push({ id: hid++, ticketId: t.id, no: t.no, action: "start", operator: t.owner, detail: "开始处理", at: t.date + " 10:20" });
+    if (t.status === "已完成" || t.status === "已关闭") history.push({ id: hid++, ticketId: t.id, no: t.no, action: "complete", operator: t.owner, detail: t.solution || "处理完成", at: t.date + " 16:05" });
+    if (t.status === "已关闭") history.push({ id: hid++, ticketId: t.id, no: t.no, action: "close", operator: t.owner, detail: "关闭工单", at: t.date + " 17:40" });
+  });
+  history.sort(function(a,b){ return a.at < b.at ? 1 : -1; });
+
+  STATE.tickets = tickets;
+  STATE.history = history;
+  STATE.nextId = 69;
+  STATE.page = 1;
+}
+
+/* =========================================================
+   状态与徽章
+   ========================================================= */
+function statusCls(s){ return s === "待处理" ? "s-pending" : s === "处理中" ? "s-processing" : s === "已完成" ? "s-completed" : "s-closed"; }
+function prioCls(p){ return p === "低" ? "b-low" : p === "高" ? "b-high" : p === "紧急" ? "b-urgent" : "b-mid"; }
+function bdg(s){ return '<span class="bdg ' + statusCls(s) + '">' + esc(s) + '</span>'; }
+function pbdg(p){ return '<span class="bdg ' + prioCls(p) + '">' + esc(p) + '</span>'; }
+
+function toast(msg, kind){
+  var wrap = document.getElementById("toasts");
+  while (wrap.children.length >= 2) wrap.removeChild(wrap.firstChild);
+  var el = document.createElement("div");
+  el.className = "toast" + (kind ? " " + kind : "");
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(function(){ el.style.opacity = "0"; el.style.transition = "opacity .25s"; setTimeout(function(){ el.remove(); }, 260); }, 2400);
+}
+
+/* =========================================================
+   列表
+   ========================================================= */
+function filtered(){
+  var st = document.getElementById("fStatus").value;
+  var city = document.getElementById("fCity").value;
+  var pr = document.getElementById("fPriority").value;
+  var q = document.getElementById("fSearch").value.trim().toLowerCase();
+  return STATE.tickets.filter(function(t){
+    if (st && t.status !== st) return false;
+    if (city && t.city !== city) return false;
+    if (pr && t.priority !== pr) return false;
+    if (q){
+      var hay = (t.no + " " + t.unit + " " + t.contact + " " + t.phone).toLowerCase();
+      if (hay.indexOf(q) < 0) return false;
+    }
+    return true;
+  });
+}
+
+function renderStats(){
+  var t = STATE.tickets;
+  var total = t.length;
+  var pending = t.filter(function(x){ return x.status === "待处理"; }).length;
+  var processing = t.filter(function(x){ return x.status === "处理中"; }).length;
+  var done = t.filter(function(x){ return x.status === "已完成"; }).length;
+  var rate = total ? Math.round((done + t.filter(function(x){ return x.status === "已关闭"; }).length) / total * 100) : 0;
+  document.getElementById("listStats").innerHTML =
+    '<div class="a-card a-stat"><div class="n n-blue">' + total + '</div><div class="l">工单总数</div></div>' +
+    '<div class="a-card a-stat"><div class="n n-orange">' + pending + '</div><div class="l">待处理</div></div>' +
+    '<div class="a-card a-stat"><div class="n n-cyan">' + processing + '</div><div class="l">处理中</div></div>' +
+    '<div class="a-card a-stat"><div class="n n-green">' + done + '</div><div class="l">已完成</div></div>' +
+    '<div class="a-card a-stat"><div class="n n-gray">' + rate + '%</div><div class="l">完成率</div></div>';
+}
+
+function renderList(){
+  var rows = filtered();
+  var pages = Math.max(1, Math.ceil(rows.length / STATE.pageSize));
+  if (STATE.page > pages) STATE.page = pages;
+  var start = (STATE.page - 1) * STATE.pageSize;
+  var pageRows = rows.slice(start, start + STATE.pageSize);
+  var tb = document.getElementById("tbody");
+
+  if (!pageRows.length){
+    tb.innerHTML = '<tr><td colspan="9"><div class="empty">没有符合条件的工单，换个筛选条件试试</div></td></tr>';
+  } else {
+    tb.innerHTML = pageRows.map(function(t){
+      return '<tr data-id="' + t.id + '">' +
+        '<td><input type="checkbox" aria-label="选择工单" onclick="event.stopPropagation()"></td>' +
+        '<td><span class="no">' + esc(t.no) + '</span></td>' +
+        '<td class="mono-s">' + esc(t.date.slice(5)) + '</td>' +
+        '<td><div class="unit" title="' + esc(t.unit) + '">' + esc(t.unit) + '</div></td>' +
+        '<td>' + esc(t.contact) + '<div class="sub">' + esc(t.phone) + '</div></td>' +
+        '<td>' + esc(shortCity(t.city)) + '</td>' +
+        '<td>' + pbdg(t.priority) + '</td>' +
+        '<td>' + bdg(t.status) + '</td>' +
+        '<td><button class="a-btn sm" onclick="event.stopPropagation();openTicket(' + t.id + ')">查看</button></td>' +
+      '</tr>';
+    }).join("");
+  }
+
+  document.getElementById("pgInfo").textContent = "共 " + rows.length + " 条 · 第 " + STATE.page + " / " + pages + " 页";
+
+  var nums = "";
+  for (var i = 1; i <= pages; i++){
+    if (pages > 7 && i > 2 && i < pages - 1 && Math.abs(i - STATE.page) > 1){
+      if (i === 3) nums += '<span style="padding:0 4px;color:var(--a-muted)">…</span>';
+      continue;
+    }
+    nums += '<button class="pg' + (i === STATE.page ? " on" : "") + '" data-page="' + i + '">' + i + '</button>';
+  }
+  document.getElementById("pgNums").innerHTML = nums;
+  document.getElementById("pgPrev").disabled = STATE.page <= 1;
+  document.getElementById("pgNext").disabled = STATE.page >= pages;
+
+  var chk = document.getElementById("chkAll");
+  if (chk) chk.checked = false;
+}
+
+/* =========================================================
+   详情抽屉
+   ========================================================= */
+var currentId = null;
+
+function openTicket(id){
+  var t = STATE.tickets.filter(function(x){ return x.id === id; })[0];
+  if (!t) return;
+  currentId = id;
+  document.getElementById("dwNo").textContent = t.no;
+  document.getElementById("dwStatus").innerHTML = bdg(t.status) + " " + pbdg(t.priority);
+
+  var kv = [
+    ["接收日期", t.date], ["接收人", t.receiver],
+    ["用户单位", t.unit], ["联系人", t.contact + " · " + t.phone],
+    ["区域", t.city + " " + t.county], ["故障类型", t.fault],
+    ["是否需要上门", t.onsite ? "是" : "否"],
+    ["上门人员", t.onsitePerson || "—"], ["上门日期", t.onsiteDate || "—"],
+    ["产品序列号", t.sn || "—"], ["创建人", t.owner]
+  ];
+  var body = '<div class="dw-sec">工单信息</div><dl class="kv">' +
+    kv.map(function(p){ return "<dt>" + p[0] + "</dt><dd>" + esc(p[1]) + "</dd>"; }).join("") + "</dl>";
+  body += '<div class="dw-sec">问题现象</div><div style="font-size:12.5px">' + esc(t.problem) + "</div>";
+  if (t.solution) body += '<div class="dw-sec">处理详情</div><div style="font-size:12.5px">' + esc(t.solution) + "</div>";
+  body += '<div class="dw-sec">操作记录</div><div class="timeline">' +
+    STATE.history.filter(function(h){ return h.ticketId === t.id; }).map(function(h){
+      return '<div class="tl-item"><span class="tl-dot"></span><span class="tl-t">' + esc(h.at) + '</span><span class="tl-c"><b>' + actionName(h.action) + '</b> · ' + esc(h.operator) + '<div class="sub">' + esc(h.detail) + "</div></span></div>";
+    }).join("") + "</div>";
+  body += '<div class="dw-note">演示环境：所有改动只发生在浏览器内存，刷新即还原。本页人员、单位、电话均为虚构或脱敏数据。</div>';
+  document.getElementById("dwBody").innerHTML = body;
+
+  var foot = '<button class="a-btn" onclick="closeDrawer()">关闭</button><div style="flex:1"></div>';
+  if (t.status === "待处理") foot += '<button class="a-btn warn" onclick="act(\'start\')">开始处理</button>';
+  if (t.status === "处理中") foot += '<button class="a-btn success" onclick="act(\'complete\')">完成工单</button>';
+  if (t.status === "已完成") foot += '<button class="a-btn" onclick="act(\'close\')">关闭工单</button>';
+  foot += '<button class="a-btn danger" onclick="act(\'delete\')">删除</button>';
+  document.getElementById("dwFoot").innerHTML = foot;
+
+  document.getElementById("drawer").classList.add("on");
+  document.getElementById("mask").classList.add("on");
+}
+
+function closeDrawer(){
+  document.getElementById("drawer").classList.remove("on");
+  document.getElementById("mask").classList.remove("on");
+  currentId = null;
+}
+
+function actionName(a){
+  return { create: "创建工单", start: "开始处理", complete: "完成工单", close: "关闭工单", delete: "删除工单", import: "导入工单" }[a] || a;
+}
+
+function nowStr(){
+  return "2026-10-18 " + pad(new Date().getHours(),2) + ":" + pad(new Date().getMinutes(),2);
+}
+
+function pushHistory(t, action, detail){
+  STATE.history.unshift({ id: STATE.history.length + 1, ticketId: t.id, no: t.no, action: action, operator: "admin", detail: detail, at: nowStr() });
+}
+
+function act(kind){
+  var t = STATE.tickets.filter(function(x){ return x.id === currentId; })[0];
+  if (!t) return;
+  if (kind === "delete"){
+    if (!confirm("演示环境：确认删除工单 " + t.no + "？操作日志会保留。")) return;
+    pushHistory(t, "delete", "删除工单");
+    STATE.tickets = STATE.tickets.filter(function(x){ return x.id !== t.id; });
+    closeDrawer(); renderAll(); toast("已删除 " + t.no + "，操作日志保留");
+    return;
+  }
+  if (kind === "start"){ t.status = "处理中"; pushHistory(t, "start", "开始处理"); toast("已开始处理 " + t.no); }
+  if (kind === "complete"){
+    var sol = prompt("填写处理详情（可留空）：", t.solution || "");
+    if (sol === null) return;
+    t.solution = sol || "处理完成";
+    t.status = "已完成";
+    pushHistory(t, "complete", t.solution);
+    toast("工单已完成");
+  }
+  if (kind === "close"){ t.status = "已关闭"; pushHistory(t, "close", "关闭工单"); toast("工单已关闭"); }
+  openTicket(t.id);
+  renderAll();
+}
+
+/* =========================================================
+   新建
+   ========================================================= */
+function fillSelect(el, items, placeholder){
+  var html = placeholder ? '<option value="">' + placeholder + "</option>" : "";
+  html += items.map(function(x){ return '<option value="' + esc(x) + '">' + esc(x) + "</option>"; }).join("");
+  el.innerHTML = html;
+}
+
+function initCreateForm(){
+  fillSelect(document.getElementById("cCity"), CITIES, "请选择州市");
+  fillSelect(document.getElementById("cFault"), FAULTS, "请选择");
+  document.getElementById("cCity").addEventListener("change", function(){
+    var list = REGIONS[this.value] || [];
+    fillSelect(document.getElementById("cCounty"), list, list.length ? "请选择区县" : "—");
+  });
+  fillSelect(document.getElementById("cCounty"), [], "请先选择州市");
+  document.getElementById("cDate").value = "2026-10-18";
+}
+
+function nextSerial(dateStr){
+  var prefix = "SG" + dateStr.replace(/-/g, "");
+  var max = 0;
+  STATE.tickets.forEach(function(t){
+    if (t.no.indexOf(prefix) === 0){
+      var n = parseInt(t.no.slice(prefix.length), 10);
+      if (!isNaN(n) && n > max) max = n;
+    }
+  });
+  return prefix + pad(max + 1, 4);
+}
+
+function createTicket(){
+  var get = function(id){ return document.getElementById(id).value.trim(); };
+  var city = get("cCity"), unit = get("cUnit"), contact = get("cContact"), phone = get("cPhone"), problem = get("cProblem");
+  var missing = [];
+  if (!unit) missing.push("用户单位");
+  if (!contact) missing.push("联系人");
+  if (!phone) missing.push("联系电话");
+  if (!problem) missing.push("问题现象");
+  if (!city) missing.push("州市");
+  if (missing.length){ toast("请填写：" + missing.join("、"), "err"); return; }
+  if (!/^1\d{10}$/.test(phone)){ toast("联系电话需为 11 位手机号", "err"); return; }
+
+  var date = get("cDate") || "2026-10-18";
+  var t = {
+    id: STATE.nextId++,
+    no: nextSerial(date),
+    date: date,
+    receiver: get("cReceiver") || "admin",
+    city: city,
+    county: get("cCounty"),
+    unit: unit,
+    contact: contact,
+    phone: phone,
+    problem: problem,
+    solution: get("cSolution"),
+    fault: get("cFault") || "其他",
+    onsite: get("cOnsite") === "是",
+    onsitePerson: get("cOnsitePerson"),
+    onsiteDate: get("cOnsiteDate"),
+    sn: get("cSn"),
+    priority: get("cPriority"),
+    status: "待处理",
+    owner: "admin",
+    createdAt: nowStr()
+  };
+  STATE.tickets.unshift(t);
+  STATE.history.unshift({ id: STATE.history.length + 1, ticketId: t.id, no: t.no, action: "create", operator: "admin", detail: "创建工单", at: nowStr() });
+
+  ["cUnit","cContact","cPhone","cProblem","cSolution","cSn","cOnsitePerson","cReceiver"].forEach(function(id){ document.getElementById(id).value = ""; });
+  toast("工单 " + t.no + " 创建成功");
+  goPane("list");
+  STATE.page = 1;
+  renderAll();
+}
+
+/* =========================================================
+   大屏
+   ========================================================= */
+function dashTickets(){
+  var city = document.getElementById("dCity").value;
+  return city ? STATE.tickets.filter(function(t){ return t.city === city; }) : STATE.tickets;
+}
+
+function renderDash(){
+  var rows = dashTickets();
+  var total = rows.length;
+  var pending = rows.filter(function(t){ return t.status === "待处理"; }).length;
+  var processing = rows.filter(function(t){ return t.status === "处理中"; }).length;
+  var done = rows.filter(function(t){ return t.status === "已完成"; }).length;
+  var closed = rows.filter(function(t){ return t.status === "已关闭"; }).length;
+  var onsite = rows.filter(function(t){ return t.onsite; }).length;
+  var rate = total ? Math.round((done + closed) / total * 100) : 0;
+
+  document.getElementById("dashStats").innerHTML =
+    '<div class="a-card a-stat"><div class="n n-blue">' + total + '</div><div class="l">工单总数</div></div>' +
+    '<div class="a-card a-stat"><div class="n n-orange">' + pending + '</div><div class="l">待处理</div></div>' +
+    '<div class="a-card a-stat"><div class="n n-cyan">' + processing + '</div><div class="l">处理中</div></div>' +
+    '<div class="a-card a-stat"><div class="n n-green">' + done + '</div><div class="l">已完成</div></div>' +
+    '<div class="a-card a-stat"><div class="n n-blue">' + onsite + '</div><div class="l">上门工单</div></div>' +
+    '<div class="a-card a-stat"><div class="n n-green">' + rate + '%</div><div class="l">完成率</div></div>';
+
+  var buckets = {};
+  for (var i = 5; i >= 0; i--){
+    var d = new Date(2026, 9 - i, 1);
+    buckets[d.getFullYear() + "-" + pad(d.getMonth()+1,2)] = { label: (d.getMonth()+1) + "月", total: 0, done: 0 };
+  }
+  rows.forEach(function(t){
+    var k = t.date.slice(0,7);
+    if (buckets[k]){ buckets[k].total++; if (t.status === "已完成" || t.status === "已关闭") buckets[k].done++; }
+  });
+  var months = Object.keys(buckets).map(function(k){ return buckets[k]; });
+  barLine(document.getElementById("chTrend"), months);
+
+  donut(document.getElementById("chStatus"), [
+    { name: "待处理", value: pending, color: "#1890ff" },
+    { name: "处理中", value: processing, color: "#faad14" },
+    { name: "已完成", value: done, color: "#52c41a" },
+    { name: "已关闭", value: closed, color: "#c9d3e3" }
+  ]);
+
+  var fm = {};
+  rows.forEach(function(t){ fm[t.fault] = (fm[t.fault] || 0) + 1; });
+  var faultArr = Object.keys(fm).map(function(k){ return { name: k, value: fm[k] }; }).sort(function(a,b){ return b.value - a.value; }).slice(0,5);
+  hbars(document.getElementById("chFault"), faultArr, "#722ed1", "单");
+
+  var cm = {};
+  rows.forEach(function(t){ cm[t.city] = (cm[t.city] || 0) + 1; });
+  var cityArr = Object.keys(cm).map(function(k){ return { name: shortCity(k), value: cm[k] }; })
+    .sort(function(a,b){ return b.value - a.value; }).slice(0,8);
+  hbars(document.getElementById("chCity"), cityArr, "#1890ff", "单");
+}
+
+/* ---- 柱线组合图 ---- */
+function barLine(el, data){
+  var W = 560, H = 258, L = 40, R = 12, T = 22, B = 34;
+  var pw = W - L - R, ph = H - T - B;
+  var max = 1;
+  data.forEach(function(d){ max = Math.max(max, d.total); });
+  max = Math.ceil(max * 1.25);
+  var step = max > 30 ? 10 : max > 12 ? 5 : 2;
+  max = Math.ceil(max / step) * step;
+
+  var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="月度工单趋势">';
+  for (var v = 0; v <= max; v += step){
+    var y = T + ph - (v / max) * ph;
+    s += '<line x1="' + L + '" y1="' + y + '" x2="' + (W - R) + '" y2="' + y + '" stroke="#eef2f8" stroke-width="1"/>';
+    s += '<text x="' + (L - 7) + '" y="' + (y + 4) + '" text-anchor="end" font-size="11" fill="#8b98ad">' + v + "</text>";
+  }
+  var slot = pw / data.length;
+  var bw = Math.min(30, slot * 0.44);
+  var pts = [];
+  data.forEach(function(d, i){
+    var cx = L + slot * i + slot / 2;
+    var bh = (d.total / max) * ph;
+    s += '<rect x="' + (cx - bw/2) + '" y="' + (T + ph - bh) + '" width="' + bw + '" height="' + bh + '" rx="3" fill="#1890ff" opacity=".9"/>';
+    s += '<text x="' + cx + '" y="' + (T + ph - bh - 5) + '" text-anchor="middle" font-size="10.5" fill="#5d6b82">' + d.total + "</text>";
+    s += '<text x="' + cx + '" y="' + (T + ph + 18) + '" text-anchor="middle" font-size="11" fill="#8b98ad">' + d.label + "</text>";
+    pts.push([cx, T + ph - (d.done / max) * ph]);
+  });
+  s += '<polyline points="' + pts.map(function(p){ return p[0] + "," + p[1]; }).join(" ") + '" fill="none" stroke="#52c41a" stroke-width="2" stroke-linejoin="round"/>';
+  pts.forEach(function(p){ s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3.2" fill="#fff" stroke="#52c41a" stroke-width="2"/>'; });
+  s += '<g font-size="11" fill="#6b7893"><rect x="' + (W - 150) + '" y="' + (T - 10) + '" width="8" height="8" rx="2" fill="#1890ff"/><text x="' + (W - 137) + '" y="' + (T - 3) + '">新增</text>';
+  s += '<line x1="' + (W - 92) + '" y1="' + (T - 6) + '" x2="' + (W - 78) + '" y2="' + (T - 6) + '" stroke="#52c41a" stroke-width="2"/><text x="' + (W - 73) + '" y="' + (T - 3) + '">完成</text></g>';
+  s += "</svg>";
+  el.innerHTML = s;
+}
+
+/* ---- 环形图 ---- */
+function donut(el, data){
+  var W = 240, H = 252, cx = 120, cy = 88, r = 52, sw = 19;
+  var total = data.reduce(function(a, b){ return a + b.value; }, 0) || 1;
+  var circ = 2 * Math.PI * r;
+  var off = 0;
+  var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="状态分布">';
+  data.forEach(function(d){
+    var len = (d.value / total) * circ;
+    s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + d.color + '" stroke-width="' + sw + '"' +
+      ' stroke-dasharray="' + Math.max(len - 2, 0) + " " + (circ - Math.max(len - 2, 0)) + '"' +
+      ' stroke-dashoffset="' + (-off) + '" transform="rotate(-90 ' + cx + " " + cy + ')" stroke-linecap="butt"/>';
+    off += len;
+  });
+  s += '<text x="' + cx + '" y="' + (cy - 3) + '" text-anchor="middle" font-size="21" font-weight="700" fill="#1f2d45">' + total + "</text>";
+  s += '<text x="' + cx + '" y="' + (cy + 14) + '" text-anchor="middle" font-size="10" fill="#8b98ad">工单总数</text>';
+  data.forEach(function(d, i){
+    var x = 26 + (i % 2) * 108;
+    var yy = 176 + Math.floor(i / 2) * 26;
+    s += '<rect x="' + x + '" y="' + (yy - 8) + '" width="8" height="8" rx="2" fill="' + d.color + '"/>';
+    s += '<text x="' + (x + 13) + '" y="' + yy + '" font-size="11" fill="#5d6b82">' + d.name + " " + d.value + "</text>";
+  });
+  s += "</svg>";
+  el.innerHTML = s;
+}
+
+/* ---- 横向条形图 ---- */
+function hbars(el, data, color, unit){
+  var W = 480, rowH = 29, T = 12, L = 88, R = 40;
+  var H = T * 2 + Math.max(data.length, 1) * rowH;
+  var max = Math.max.apply(null, data.map(function(d){ return d.value; }).concat([1]));
+  var pw = W - L - R;
+  var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="分布">';
+  data.forEach(function(d, i){
+    var y = T + i * rowH;
+    var w = Math.max(3, (d.value / max) * pw);
+    s += '<text x="' + (L - 8) + '" y="' + (y + 15) + '" text-anchor="end" font-size="11" fill="#5d6b82">' + esc(d.name) + "</text>";
+    s += '<rect x="' + L + '" y="' + (y + 4) + '" width="' + pw + '" height="14" rx="7" fill="#f2f6fc"/>';
+    s += '<rect x="' + L + '" y="' + (y + 4) + '" width="' + w + '" height="14" rx="7" fill="' + color + '" opacity=".9"/>';
+    s += '<text x="' + (L + w + 7) + '" y="' + (y + 15) + '" font-size="11" fill="#8b98ad">' + d.value + "</text>";
+  });
+  s += "</svg>";
+  el.innerHTML = s;
+}
+
+/* =========================================================
+   导入
+   ========================================================= */
+var HEADERS = ["工单编号","接收日期","接收人","省份","州市","区县","用户单位","联系人","联系电话","问题现象","处理详情","故障类型","自定义故障类型","是否需要上门处理","上门人员","上门日期","产品序列号","备注"];
+var SAMPLE = "工单编号,接收日期,接收人,省份,州市,区县,用户单位,联系人,联系电话,问题现象,处理详情,故障类型,自定义故障类型,是否需要上门处理,上门人员,上门日期,产品序列号,备注\n" +
+  ",2026-10-17,李四,云南省,曲靖市,麒麟区,某市第二人民医院,王五,13800000000,打印机卡纸,已清理,硬件故障,,否,,,SN20260101,\n" +
+  ",2026-10-17,李四,云南省,大理白族自治州,大理市,某州政务服务中心,赵六,13800000001,终端无法读取身份证,,硬件故障,,是,周八,2026-10-18,SN20260102,客户催得急\n" +
+  ",2026-10-16,张三,云南省,红河哈尼族彝族自治州,蒙自市,某州税务局,孙七,13800000002,内网访问后台超时,,网络故障,,否,,,,";
+
+function parseCSV(text){
+  text = text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  var lines = text.split("\n").filter(function(l){ return l.trim() !== ""; });
+  if (!lines.length) return { rows: [], errors: ["文件为空"] };
+  var head = lines[0].split(",").map(function(h){ return h.trim(); });
+  var rows = [], errors = [];
+  for (var i = 1; i < lines.length; i++){
+    var cells = lines[i].split(",");
+    var o = {};
+    head.forEach(function(h, j){ o[h] = (cells[j] || "").trim(); });
+    rows.push({ line: i + 1, data: o });
+  }
+  return { rows: rows, errors: errors };
+}
+
+function renderImport(){
+  var text = document.getElementById("csvBox").textContent.trim();
+  if (!text){ toast("请先贴入 CSV 或载入示例数据", "warn"); return; }
+  var res = parseCSV(text);
+  var bad = [];
+  var good = [];
+  res.rows.forEach(function(r){
+    var miss = [];
+    if (!r.data["用户单位"]) miss.push("用户单位");
+    if (!r.data["联系人"]) miss.push("联系人");
+    if (!r.data["联系电话"]) miss.push("联系电话");
+    if (!r.data["州市"]) miss.push("州市");
+    if (miss.length) bad.push("第 " + r.line + " 行：缺少 " + miss.join("、"));
+    else good.push(r);
+  });
+  window.__impGood = good;
+
+  var html = "";
+  if (!res.rows.length){ html = "没有可解析的数据行。"; }
+  else {
+    html = "<div>共 <b>" + res.rows.length + "</b> 行，可导入 <b style='color:#389e0d'>" + good.length + "</b> 行，" +
+           "失败 <b style='color:#cf1322'>" + bad.length + "</b> 行。</div>";
+    if (good.length) html += '<div style="margin-top:8px;font-size:11.8px;color:#8b98ad">预览前 3 行：</div>' +
+      good.slice(0,3).map(function(r){ return '<div style="font-size:11.8px;padding:3px 0;border-bottom:1px dashed #eef2f8">' +
+        esc(r.data["州市"] || "") + " · " + esc(r.data["区县"] || "") + " · " + esc(r.data["用户单位"]) + " · " + esc(r.data["联系人"]) + "</div>"; }).join("");
+  }
+  document.getElementById("impPreview").innerHTML = html;
+  document.getElementById("impLog").innerHTML = bad.map(function(b){ return '<div><span class="bad">✗</span><span>' + esc(b) + "</span></div>"; }).join("");
+  document.getElementById("btnImport").disabled = good.length === 0;
+  document.getElementById("impState").textContent = "解析完成：" + good.length + " 行可导入";
+}
+
+function doImport(){
+  var rows = window.__impGood || [];
+  if (!rows.length) return;
+  var added = 0;
+  rows.forEach(function(r){
+    var d = r.data;
+    var date = /^\d{4}-\d{2}-\d{2}/.test(d["接收日期"]) ? d["接收日期"].slice(0,10) : "2026-10-18";
+    var city = d["州市"] || "昆明市";
+    var t = {
+      id: STATE.nextId++,
+      no: nextSerial(date),
+      date: date,
+      receiver: d["接收人"] || "admin",
+      city: city,
+      county: d["区县"] || "",
+      unit: d["用户单位"],
+      contact: d["联系人"],
+      phone: d["联系电话"],
+      problem: d["问题现象"] || "",
+      solution: d["处理详情"] || "",
+      fault: d["故障类型"] || d["自定义故障类型"] || "其他",
+      onsite: d["是否需要上门处理"] === "是",
+      onsitePerson: d["上门人员"] || "",
+      onsiteDate: d["上门日期"] || "",
+      sn: d["产品序列号"] || "",
+      priority: "中",
+      status: "待处理",
+      owner: "admin",
+      createdAt: nowStr()
+    };
+    STATE.tickets.unshift(t);
+    STATE.history.unshift({ id: STATE.history.length + 1, ticketId: t.id, no: t.no, action: "import", operator: "admin", detail: "导入工单", at: nowStr() });
+    added++;
+  });
+  document.getElementById("csvBox").textContent = "";
+  document.getElementById("impPreview").textContent = "已导入 " + added + " 条。";
+  document.getElementById("impLog").innerHTML = "";
+  document.getElementById("btnImport").disabled = true;
+  document.getElementById("impState").textContent = "";
+  toast("成功导入 " + added + " 条工单");
+  renderAll();
+  goPane("list");
+}
+
+/* =========================================================
+   日志 / 导出 / 模板
+   ========================================================= */
+function renderLog(){
+  var f = document.getElementById("logFilter").value;
+  var rows = STATE.history.filter(function(h){ return !f || h.action === f; }).slice(0, 60);
+  document.getElementById("logList").innerHTML = rows.length ? rows.map(function(h){
+    return '<div class="tl-item"><span class="tl-dot"></span><span class="tl-t">' + esc(h.at) + '</span>' +
+      '<span class="tl-c"><b>' + actionName(h.action) + '</b> · ' + esc(h.operator) +
+      '<span class="mono-s" style="color:#8b98ad;margin-left:6px">' + esc(h.no) + '</span>' +
+      '<div class="sub" style="color:#8b98ad">' + esc(h.detail) + "</div></span></div>";
+  }).join("") : '<div class="empty">暂无日志</div>';
+}
+
+function download(name, content, type){
+  var blob = new Blob([content], { type: type || "text/plain;charset=utf-8" });
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 400);
+}
+
+function exportCSV(){
+  var rows = filtered();
+  var head = HEADERS.join(",");
+  var body = rows.map(function(t){
+    return [t.no, t.date, t.receiver, "云南省", t.city, t.county, t.unit, t.contact, t.phone,
+      t.problem, t.solution, t.fault, "", t.onsite ? "是" : "否", t.onsitePerson, t.onsiteDate, t.sn, ""].join(",");
+  }).join("\n");
+  download("工单导出_" + rows.length + "条.csv", "\uFEFF" + head + "\n" + body, "text/csv;charset=utf-8");
+  toast("已导出 " + rows.length + " 条（含当前筛选条件）");
+}
+
+/* =========================================================
+   导航 / 绑定
+   ========================================================= */
+function goPane(name){
+  closeDrawer();
+  document.querySelectorAll(".pane").forEach(function(p){ p.classList.toggle("on", p.dataset.pane === name); });
+  document.querySelectorAll(".rail a").forEach(function(a){ a.classList.toggle("active", a.dataset.pane === name); });
+  var map = { list: "工单列表", create: "新建工单", dash: "数据大屏", import: "批量导入", log: "操作日志", users: "用户管理" };
+  document.getElementById("crumb").textContent = map[name] || "";
+  if (name === "dash") renderDash();
+  if (name === "log") renderLog();
+  if (name === "list") renderList();
+}
+
+function renderAll(){
+  renderStats();
+  renderList();
+  if (document.querySelector('.pane[data-pane="dash"]').classList.contains("on")) renderDash();
+  if (document.querySelector('.pane[data-pane="log"]').classList.contains("on")) renderLog();
+}
+
+function bind(){
+  document.querySelectorAll(".rail a").forEach(function(a){
+    a.addEventListener("click", function(){ goPane(a.dataset.pane); });
+    a.addEventListener("keydown", function(e){ if (e.key === "Enter" || e.key === " "){ e.preventDefault(); goPane(a.dataset.pane); } });
+  });
+  document.querySelectorAll("[data-goto]").forEach(function(b){
+    b.addEventListener("click", function(){ goPane(b.dataset.goto); });
+  });
+
+  document.getElementById("fStatus").addEventListener("change", function(){ STATE.page = 1; renderList(); });
+  document.getElementById("fCity").addEventListener("change", function(){ STATE.page = 1; renderList(); });
+  document.getElementById("fPriority").addEventListener("change", function(){ STATE.page = 1; renderList(); });
+  var timer = null;
+  document.getElementById("fSearch").addEventListener("input", function(){
+    clearTimeout(timer);
+    timer = setTimeout(function(){ STATE.page = 1; renderList(); }, 220);
+  });
+  document.getElementById("btnSearch").addEventListener("click", function(){ STATE.page = 1; renderList(); });
+  document.getElementById("btnReset").addEventListener("click", function(){
+    document.getElementById("fStatus").value = "";
+    document.getElementById("fCity").value = "";
+    document.getElementById("fPriority").value = "";
+    document.getElementById("fSearch").value = "";
+    STATE.page = 1; renderList();
+  });
+  document.getElementById("btnExport").addEventListener("click", exportCSV);
+
+  document.getElementById("tbody").addEventListener("click", function(e){
+    var tr = e.target.closest("tr[data-id]");
+    if (tr) openTicket(Number(tr.dataset.id));
+  });
+  document.getElementById("pgPrev").addEventListener("click", function(){ if (STATE.page > 1){ STATE.page--; renderList(); } });
+  document.getElementById("pgNext").addEventListener("click", function(){ STATE.page++; renderList(); });
+  document.getElementById("pgNums").addEventListener("click", function(e){
+    var b = e.target.closest("button[data-page]");
+    if (b){ STATE.page = Number(b.dataset.page); renderList(); }
+  });
+  document.getElementById("chkAll").addEventListener("change", function(){
+    document.querySelectorAll("#tbody input[type=checkbox]").forEach(function(c){ c.checked = this.checked; }.bind(this));
+  });
+
+  document.getElementById("mask").addEventListener("click", closeDrawer);
+  document.getElementById("dwClose").addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeDrawer(); });
+
+  document.getElementById("btnCreate").addEventListener("click", createTicket);
+  document.getElementById("btnDash").addEventListener("click", renderDash);
+  document.getElementById("dCity").addEventListener("change", renderDash);
+  document.getElementById("logFilter").addEventListener("change", renderLog);
+
+  document.getElementById("btnTpl").addEventListener("click", function(){
+    download("工单导入模板.csv", "\uFEFF" + HEADERS.join(",") + "\n", "text/csv;charset=utf-8");
+    toast("模板已下载");
+  });
+  document.getElementById("btnSample").addEventListener("click", function(){
+    document.getElementById("csvBox").textContent = SAMPLE;
+    document.getElementById("impState").textContent = "已载入 3 行示例";
+  });
+  document.getElementById("btnParse").addEventListener("click", renderImport);
+  document.getElementById("btnImport").addEventListener("click", doImport);
+  document.getElementById("dropZone").addEventListener("click", function(){ document.getElementById("fileInput").click(); });
+  document.getElementById("fileInput").addEventListener("change", function(){
+    var f = this.files && this.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      document.getElementById("csvBox").textContent = reader.result;
+      document.getElementById("impState").textContent = f.name + " 已载入";
+      renderImport();
+    };
+    reader.readAsText(f, "UTF-8");
+  });
+  ["dragover","dragenter"].forEach(function(ev){
+    document.getElementById("dropZone").addEventListener(ev, function(e){ e.preventDefault(); this.style.borderColor = "#40a9ff"; });
+  });
+  ["dragleave","drop"].forEach(function(ev){
+    document.getElementById("dropZone").addEventListener(ev, function(e){ e.preventDefault(); this.style.borderColor = "#b7c6da"; });
+  });
+  document.getElementById("dropZone").addEventListener("drop", function(e){
+    var f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      document.getElementById("csvBox").textContent = reader.result;
+      document.getElementById("impState").textContent = f.name + " 已载入";
+      renderImport();
+    };
+    reader.readAsText(f, "UTF-8");
+  });
+
+  document.getElementById("btnResetData").addEventListener("click", function(){
+    seed();
+    goPane("list");
+    renderAll();
+    toast("演示数据已重置");
+  });
+  document.getElementById("btnUser").addEventListener("click", function(){ toast("演示环境不开放用户创建", "warn"); });
+
+  // tabs
+  document.querySelectorAll(".tab").forEach(function(t){
+    t.addEventListener("click", function(){
+      document.querySelectorAll(".tab").forEach(function(x){ x.classList.toggle("on", x === t); });
+      document.querySelectorAll(".tabpanel").forEach(function(p){ p.classList.toggle("on", p.id === t.dataset.tab); });
+    });
+  });
+  // copy
+  document.querySelectorAll(".copy").forEach(function(b){
+    b.addEventListener("click", function(){
+      var el = document.getElementById(b.dataset.copy);
+      var text = el.innerText;
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){
+          b.textContent = "已复制"; setTimeout(function(){ b.textContent = "复制"; }, 1400);
+        });
+      } else {
+        var ta = document.createElement("textarea");
+        ta.value = text; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); b.textContent = "已复制"; } catch (e){ b.textContent = "复制失败"; }
+        setTimeout(function(){ b.textContent = "复制"; ta.remove(); }, 1400);
+      }
+    });
+  });
+  // theme
+  var btn = document.getElementById("themeBtn");
+  var saved = null;
+  try { saved = localStorage.getItem("wo-theme"); } catch (e){}
+  if (saved) document.documentElement.setAttribute("data-theme", saved);
+  btn.addEventListener("click", function(){
+    var cur = document.documentElement.getAttribute("data-theme");
+    var next = cur === "light" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("wo-theme", next); } catch (e){}
+  });
+}
+
+/* =========================================================
+   滚动动效
+   ========================================================= */
+function initReveal(){
+  var items = document.querySelectorAll(".reveal");
+  if (!("IntersectionObserver" in window)){ items.forEach(function(i){ i.classList.add("in"); }); return; }
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if (en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target); }
+    });
+  }, { rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
+  items.forEach(function(i){ io.observe(i); });
+}
+
+function initProgress(){
+  var bar = document.getElementById("progress");
+  function upd(){
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    bar.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  window.addEventListener("scroll", upd, { passive: true });
+  window.addEventListener("resize", upd);
+  upd();
+}
+
+/* =========================================================
+   启动
+   ========================================================= */
+(function init(){
+  fillSelect(document.getElementById("fCity"), CITIES, "全部州市");
+  fillSelect(document.getElementById("dCity"), CITIES, "全部州市");
+  initCreateForm();
+  seed();
+  bind();
+  renderAll();
+  initReveal();
+  initProgress();
+})();
+</script>
+</body>
+</html>

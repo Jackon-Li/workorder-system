@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block title %}操作日志{% endblock %}
+{% block content %}
+<div class="page-header"><h4><i class="fas fa-history"></i> 操作日志</h4></div>
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr><th>时间</th><th>工单</th><th>操作</th><th>字段</th><th>原值</th><th>新值</th><th>操作人</th></tr>
+            </thead>
+            <tbody>
+                {% for h in histories %}
+                <tr>
+                    <td>{{ h.created_at.strftime('%Y-%m-%d %H:%M') if h.created_at else '' }}</td>
+                    <td>
+                        {% if h.ticket %}
+                        <a href="{{ url_for('ticket_detail', ticket_id=h.ticket_id) }}">{{ h.ticket.serial_no }}</a>
+                        {% else %}
+                        {{ h.ticket_id }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if h.action == 'create' %}<span class="badge badge-success">创建</span>
+                        {% elif h.action == 'edit' %}<span class="badge badge-info">编辑</span>
+                        {% elif h.action == 'complete' %}<span class="badge badge-primary">完成</span>
+                        {% elif h.action == 'start' %}<span class="badge badge-warning">开始处理</span>
+                        {% elif h.action == 'close' %}<span class="badge badge-secondary">关闭</span>
+                        {% elif h.action == 'delete' %}<span class="badge badge-danger">删除</span>
+                        {% elif h.action == 'import' %}<span class="badge badge-warning">导入</span>
+                        {% else %}{{ h.action }}{% endif %}
+                    </td>
+                    <td><small>{{ h.field_name }}</small></td>
+                    <td><small class="text-muted">{{ h.old_value[:30] }}{% if h.old_value|length > 30 %}...{% endif %}</small></td>
+                    <td><small class="text-success">{{ h.new_value[:30] }}{% if h.new_value|length > 30 %}...{% endif %}</small></td>
+                    <td>{{ h.operator or '-' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center text-muted py-4">暂无操作记录</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if pagination.pages > 1 %}
+    <div class="card-footer">
+        <nav>
+            <ul class="pagination pagination-sm mb-0 justify-content-center">
+                {% if pagination.has_prev %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('ticket_histories', page=pagination.prev_num) }}">上一页</a></li>
+                {% endif %}
+                {% for p in pagination.iter_pages() %}
+                    {% if p %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}"><a class="page-link" href="{{ url_for('ticket_histories', page=p) }}">{{ p }}</a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                {% if pagination.has_next %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('ticket_histories', page=pagination.next_num) }}">下一页</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
